@@ -112,14 +112,19 @@ async def run_remix_pipeline(
     aspect_ratio: str,
     language: str,
     style: str,
+    image_provider: str = "gemini",
 ) -> None:
     """리믹스 파이프라인 전체 실행."""
     try:
-        from grok_visual import generate_image_grok, image_to_clip
+        from grok_visual import image_to_clip
 
-        api_key = settings.get("xai", {}).get("api_key", "")
-        if not api_key:
+        api_key_xai = settings.get("xai", {}).get("api_key", "")
+        api_key_gemini = settings.get("tts", {}).get("api_key", "")
+
+        if image_provider == "grok" and not api_key_xai:
             raise ValueError("xAI API 키 없음 (settings.json → xai.api_key)")
+        if image_provider == "gemini" and not api_key_gemini:
+            raise ValueError("Gemini API 키 없음 (settings.json → tts.api_key)")
 
         output_dir = source_video.parent / f"remix_{job.job_id}"
         output_dir.mkdir(exist_ok=True)
@@ -153,7 +158,12 @@ async def run_remix_pipeline(
             clip_path = str(output_dir / f"new_{idx:03d}.mp4")
 
             orig_dur = await asyncio.to_thread(get_video_duration, scenes[idx])
-            await asyncio.to_thread(generate_image_grok, prompt, api_key, img_path)
+            if image_provider == "grok":
+                from grok_visual import generate_image_grok
+                await asyncio.to_thread(generate_image_grok, prompt, api_key_xai, img_path)
+            else:
+                from gemini_image import generate_image_gemini
+                await asyncio.to_thread(generate_image_gemini, prompt, api_key_gemini, img_path)
             await asyncio.to_thread(image_to_clip, img_path, clip_path, orig_dur, aspect_ratio)
             scenes[idx] = Path(clip_path)
 

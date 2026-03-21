@@ -21,6 +21,7 @@ async def remix_video(
     aspect_ratio: str = Form("16:9"),
     language: str = Form("ko"),
     style: str = Form(""),
+    image_provider: str = Form("gemini"),
     file: UploadFile = File(...),
 ):
     """기존 영상의 선택한 씬을 Grok으로 교체한다."""
@@ -42,6 +43,7 @@ async def remix_video(
             aspect_ratio=aspect_ratio,
             language=language,
             style=style,
+            image_provider=image_provider,
         )
     )
     return JobResponse(job_id=job.job_id, status=job.status)
