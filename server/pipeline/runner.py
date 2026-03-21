@@ -73,26 +73,27 @@ async def run_pipeline(job: Job, req: GenerateRequest):
             save_audio(audio_data, sample_rate, str(audio_path))
         complete_phase(job, "tts")
 
-        # === Phase 3: Whisper 자막 ===
+        # === Phase 3: 자막 생성 (Gemini) ===
         update_phase(job, "whisper", 0.0)
         if not srt_path.exists():
-            from whisper_srt import generate_srt_from_whisper
+            from gemini_srt import generate_srt_with_gemini
 
+            api_key = settings.get("tts", {}).get("api_key", "")
             max_chars = 10 if req.aspect_ratio == "9:16" else 15
             srt_text = await asyncio.to_thread(
-                generate_srt_from_whisper,
+                generate_srt_with_gemini,
                 str(audio_path),
-                max_chars=max_chars, model_name="base", language=req.language,
+                max_chars, req.language, api_key,
             )
             srt_path.write_text(srt_text, encoding="utf-8")
         complete_phase(job, "whisper")
 
-        # === Phase 4: 이미지 + 모션 ===
+        # === Phase 4: 이미지 + 모션 (Grok Aurora) ===
         update_phase(job, "visuals", 0.0)
         if not visuals_dir.exists() or not list(visuals_dir.glob("scene_*.mp4")):
             import subprocess
             cmd = [
-                sys.executable, str(BASE_DIR / "scripts" / "whisk_visual.py"),
+                sys.executable, str(BASE_DIR / "scripts" / "cloud_visual.py"),
                 str(script_path), str(srt_path), str(visuals_dir),
                 "--lang", req.language,
                 "--aspect-ratio", req.aspect_ratio,
