@@ -97,6 +97,7 @@ async def run_pipeline(job: Job, req: GenerateRequest):
                 str(script_path), str(srt_path), str(visuals_dir),
                 "--lang", req.language,
                 "--aspect-ratio", req.aspect_ratio,
+                "--image-provider", req.image_provider,
             ]
             await asyncio.to_thread(
                 subprocess.run, cmd, capture_output=True, timeout=600,

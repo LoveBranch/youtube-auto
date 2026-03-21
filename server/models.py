@@ -15,6 +15,7 @@ class GenerateRequest(BaseModel):
     style_reference_url: str | None = None
     script_content: str | None = None   # 사용자가 직접 제공한 대본 (생성 스킵)
     source_content: str | None = None   # 참고 자료 텍스트 (AI 대본 생성 시 활용)
+    image_provider: str = "gemini"      # "gemini" (무료) | "grok" (유료, 고품질)
 
 
 class ScriptRequest(BaseModel):
