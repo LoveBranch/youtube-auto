@@ -1,6 +1,7 @@
 """전역 설정 로더."""
 
 import json
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -10,9 +11,20 @@ CHANNELS_DIR = BASE_DIR / "channels"
 
 
 def load_settings() -> dict:
+    data: dict = {}
     if SETTINGS_PATH.exists():
-        return json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
-    return {}
+        try:
+            data = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    # Railway 환경변수가 있으면 settings.json보다 우선 적용
+    if os.environ.get("GEMINI_API_KEY"):
+        data.setdefault("tts", {})["api_key"] = os.environ["GEMINI_API_KEY"]
+    if os.environ.get("XAI_API_KEY"):
+        data.setdefault("xai", {})["api_key"] = os.environ["XAI_API_KEY"]
+
+    return data
 
 
 settings = load_settings()
