@@ -20,9 +20,9 @@ def load_settings() -> dict:
 
     # Railway 환경변수가 있으면 settings.json보다 우선 적용
     if os.environ.get("GEMINI_API_KEY"):
-        data.setdefault("tts", {})["api_key"] = os.environ["GEMINI_API_KEY"]
+        data.setdefault("tts", {})["api_key"] = os.environ.get("GEMINI_API_KEY", "")
     if os.environ.get("XAI_API_KEY"):
-        data.setdefault("xai", {})["api_key"] = os.environ["XAI_API_KEY"]
+        data.setdefault("xai", {})["api_key"] = os.environ.get("XAI_API_KEY", "")
 
     return data
 
