@@ -15,6 +15,8 @@ Whisk API로 이미지를 생성한 뒤 모션 영상으로 변환한다.
       ...
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import re
