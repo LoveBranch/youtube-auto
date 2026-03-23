@@ -68,11 +68,13 @@ async def run_pipeline(job: Job, req: GenerateRequest):
         # === Phase 2: TTS ===
         update_phase(job, "tts", 0.0)
         if not audio_path.exists():
-            from tts import extract_narration, call_edge_tts, resolve_voice
+            from tts import extract_narration
+            from gtts import gTTS
 
-            voice = req.voice or resolve_voice(req.language, settings)
             text = extract_narration(script_path.read_text(encoding="utf-8"))
-            await call_edge_tts(text, voice, req.language, str(audio_path))
+            lang_code = (req.language or 'ko').split('-')[0]
+            tts = gTTS(text=text, lang=lang_code)
+            await asyncio.to_thread(tts.save, str(audio_path))
         complete_phase(job, "tts")
         _check_cancelled(job)
 
