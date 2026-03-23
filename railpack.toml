@@ -1,0 +1,5 @@
+[options]
+# Force fresh build plan generation
+
+[deploy]
+startCommand = "uvicorn server.app:app --host 0.0.0.0 --port $PORT"
