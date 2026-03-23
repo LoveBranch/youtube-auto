@@ -23,6 +23,10 @@ def load_settings() -> dict:
     if gemini_key:
         data.setdefault("tts", {})["api_key"] = gemini_key
 
+    xai_key = os.environ.get("XAI_API_KEY", "")
+    if xai_key:
+        data.setdefault("xai", {})["api_key"] = xai_key
+
     return data
 
 
