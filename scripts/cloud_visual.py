@@ -30,6 +30,7 @@ def generate_cloud_visuals(
     lang: str = "ko",
     aspect_ratio: str = "16:9",
     image_provider: str = "gemini",
+    style_preset: str | None = None,
 ) -> None:
     """대본 → 씬 추출 → 프롬프트 생성 → 이미지 → Ken Burns 영상 클립."""
     script_text = Path(script_path).read_text(encoding="utf-8")
@@ -43,14 +44,14 @@ def generate_cloud_visuals(
         print("오류: settings.json에 xai.api_key가 없음", file=sys.stderr)
         sys.exit(1)
 
-    print(f"이미지 생성 백엔드: {image_provider}")
+    print(f"이미지 생성 백엔드: {image_provider}, 스타일: {style_preset or '기본'}")
 
     # 1) 씬 추출
     scenes = extract_sections(script_text)
     print(f"씬 {len(scenes)}개 추출됨")
 
     # 2) 이미지 프롬프트 생성 (Gemini)
-    scenes = generate_image_prompts(scenes, lang, aspect_ratio, api_key_gemini)
+    scenes = generate_image_prompts(scenes, lang, aspect_ratio, api_key_gemini, style_preset=style_preset)
     print("이미지 프롬프트 생성 완료")
 
     # 3) 씬별 이미지 + 영상 클립 생성
@@ -101,6 +102,8 @@ def main() -> None:
     parser.add_argument("--aspect-ratio", default="16:9", help="화면 비율 (기본: 16:9)")
     parser.add_argument("--image-provider", default="gemini", choices=["gemini", "grok"],
                         help="이미지 생성 백엔드 (기본: gemini)")
+    parser.add_argument("--style-preset", default=None,
+                        help="스타일 프리셋 (예: cinematic_realism, anime_manhwa)")
     args = parser.parse_args()
 
     generate_cloud_visuals(
@@ -110,6 +113,7 @@ def main() -> None:
         lang=args.lang,
         aspect_ratio=args.aspect_ratio,
         image_provider=args.image_provider,
+        style_preset=args.style_preset,
     )
 
 

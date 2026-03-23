@@ -16,6 +16,7 @@ class GenerateRequest(BaseModel):
     script_content: str | None = None   # 사용자가 직접 제공한 대본 (생성 스킵)
     source_content: str | None = None   # 참고 자료 텍스트 (AI 대본 생성 시 활용)
     image_provider: str = "gemini"      # "gemini" (무료) | "grok" (유료, 고품질)
+    style_preset: str | None = None     # 사용자 선택 스타일 프리셋 (예: "cinematic_realism", "anime_manhwa")
 
 
 class ScriptRequest(BaseModel):

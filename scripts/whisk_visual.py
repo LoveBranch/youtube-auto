@@ -189,8 +189,98 @@ VISUAL_STYLE_PROMPTS = {
     "es": "iluminación cinematográfica, ilustración digital de alta calidad, estilo educativo de YouTube",
 }
 
+# 스타일 프리셋별 이미지 프롬프트 가이드라인
+STYLE_PRESET_GUIDES = {
+    "cinematic_realism": {
+        "style_desc": "photorealistic cinematic film still",
+        "rules": (
+            "Shot on ARRI Alexa or RED camera. Dramatic chiaroscuro lighting with deep shadows and warm highlights. "
+            "Shallow depth of field, bokeh background. Rich color grading like a Hollywood blockbuster. "
+            "Hyper-detailed textures. Real human subjects with authentic expressions. "
+            "Atmosphere: tension, gravitas, or wonder depending on scene content. "
+            "NO cartoon, illustration, or digital art. Every image must look like a frame from a prestige film."
+        ),
+    },
+    "news_documentary": {
+        "style_desc": "professional broadcast documentary photography",
+        "rules": (
+            "Clean, neutral color palette — cool whites, desaturated tones. Flat even lighting or natural daylight. "
+            "Wide establishing shots for context, medium shots for people. "
+            "Journalistic realism: candid, unposed subjects in real environments. "
+            "Graphic overlays feel optional but images must look like AP/Reuters news photography. "
+            "NO dramatic filters or heavy post-processing. Credible, trustworthy visual tone."
+        ),
+    },
+    "epic_fantasy": {
+        "style_desc": "epic fantasy digital painting",
+        "rules": (
+            "Grand scale compositions: sweeping vistas, towering structures, dramatic skies. "
+            "Painterly style inspired by Greg Rutkowski, Artstation concept art. "
+            "Vibrant saturated colors: deep purples, electric blues, golden ambers. "
+            "Dramatic volumetric lighting — god rays, magical glows, bioluminescence. "
+            "Mythological or fantastical elements: ancient ruins, dragons, warriors, magical phenomena. "
+            "Epic, awe-inspiring compositions. Think 'Lord of the Rings' or 'Game of Thrones' visual scale."
+        ),
+    },
+    "anime_manhwa": {
+        "style_desc": "high-quality anime illustration",
+        "rules": (
+            "Clean 2D anime art style with crisp linework and cel-shading. "
+            "Inspired by Studio Ghibli, Makoto Shinkai, or modern manhwa. "
+            "Pastel to vibrant color palette with soft glows and atmospheric depth. "
+            "Expressive character faces with large eyes and detailed hair. "
+            "Beautiful environmental backgrounds: cherry blossoms, neon cityscapes, fantasy landscapes. "
+            "NO photorealism. Stylized proportions. Smooth gradients. Soft light bloom effects."
+        ),
+    },
+    "3d_render": {
+        "style_desc": "high-quality 3D CGI render",
+        "rules": (
+            "Pixar/DreamWorks quality 3D render with subsurface scattering and ray-traced lighting. "
+            "Clean, polished surfaces with physically-based materials. "
+            "Soft ambient occlusion and natural HDRI lighting. "
+            "Characters have stylized but realistic proportions — not cartoony, not hyperrealistic. "
+            "Environments: clean architecture, futuristic interiors, or stylized nature. "
+            "Think Blender render quality. Crisp edges, no noise, no artifacts."
+        ),
+    },
+    "minimalist_infographic": {
+        "style_desc": "clean minimalist flat design illustration",
+        "rules": (
+            "Flat 2D vector illustration style. Limited color palette: 2-3 bold accent colors on white/light background. "
+            "Simple geometric shapes and clean iconography. "
+            "No shadows, no gradients (or very subtle). "
+            "Clear visual hierarchy: one main concept per image. "
+            "Think Google Material Design or modern explainer video aesthetics. "
+            "Lots of white space. Friendly, approachable, professional tone."
+        ),
+    },
+    "dark_moody": {
+        "style_desc": "dark atmospheric noir photography",
+        "rules": (
+            "Low-key lighting with deep blacks and minimal highlights. High contrast. "
+            "Color palette: desaturated with selective color accents (deep red, electric blue, amber). "
+            "Fog, rain, smoke, or dust particles for atmosphere. "
+            "Dramatic single-source lighting: neon signs, moonlight, spotlight through blinds. "
+            "Inspired by neo-noir cinematography (Blade Runner 2049, Se7en, True Detective). "
+            "Conveys unease, mystery, psychological tension, or moral complexity."
+        ),
+    },
+    "vintage_retro": {
+        "style_desc": "vintage film photography aesthetic",
+        "rules": (
+            "Analog film grain and light leaks. Faded, warm color palette: yellows, oranges, muted greens. "
+            "Vignetting around edges. Slightly desaturated mid-tones. "
+            "Era-specific visual cues: 70s/80s fashion, retro technology, film photography grain. "
+            "Inspired by Kodachrome or Fuji Velvia film stocks. "
+            "Nostalgic, warm, authentic feeling. Like a found photograph from the past. "
+            "NO clean digital look. Embrace imperfections: scratches, dust, color shifts."
+        ),
+    },
+}
 
-def generate_image_prompts(scenes: list[dict], lang: str, aspect_ratio: str, api_key: str = "") -> list[dict]:
+
+def generate_image_prompts(scenes: list[dict], lang: str, aspect_ratio: str, api_key: str = "", style_preset: str | None = None) -> list[dict]:
     """Gemini API로 대본 내용을 시각적 이미지 프롬프트로 변환한다."""
     orientation = {
         "16:9": "wide landscape",
@@ -200,7 +290,7 @@ def generate_image_prompts(scenes: list[dict], lang: str, aspect_ratio: str, api
 
     # Gemini API로 정확한 이미지 프롬프트 생성
     if api_key:
-        prompts = _generate_prompts_with_gemini(scenes, lang, orientation, api_key)
+        prompts = _generate_prompts_with_gemini(scenes, lang, orientation, api_key, style_preset=style_preset)
         if prompts:
             for scene, prompt in zip(scenes, prompts):
                 scene["image_prompt"] = prompt
@@ -210,7 +300,8 @@ def generate_image_prompts(scenes: list[dict], lang: str, aspect_ratio: str, api
             return scenes
 
     # 폴백: Gemini 실패 시 기존 방식
-    style = VISUAL_STYLE_PROMPTS.get(lang, VISUAL_STYLE_PROMPTS["en"])
+    style_guide = STYLE_PRESET_GUIDES.get(style_preset or "", {})
+    style = style_guide.get("style_desc") or VISUAL_STYLE_PROMPTS.get(lang, VISUAL_STYLE_PROMPTS["en"])
     for scene in scenes:
         text_preview = scene["text_preview"]
         scene["image_prompt"] = (
@@ -240,7 +331,7 @@ def _is_hook_scene(scene: dict) -> bool:
     return False
 
 
-def _generate_prompts_with_gemini(scenes: list[dict], lang: str, orientation: str, api_key: str) -> list[str]:
+def _generate_prompts_with_gemini(scenes: list[dict], lang: str, orientation: str, api_key: str, style_preset: str | None = None) -> list[str]:
     """Gemini API에게 대본을 주고 각 씬의 시각적 이미지 프롬프트를 생성한다."""
     import requests
 
@@ -248,22 +339,33 @@ def _generate_prompts_with_gemini(scenes: list[dict], lang: str, orientation: st
     for s in scenes:
         scenes_text += f"\n[씬 {s['index']}] {s['title']}\n{s['text_preview'][:200]}\n"
 
-    system_prompt = f"""You are an expert image prompt engineer for AI image generators (Imagen, DALL-E, Midjourney).
+    # 스타일 프리셋 적용
+    preset = STYLE_PRESET_GUIDES.get(style_preset or "", {})
+    style_desc = preset.get("style_desc", "photorealistic cinematic film still")
+    style_rules = preset.get("rules", (
+        "Shot on ARRI Alexa. Dramatic chiaroscuro lighting. Shallow depth of field. "
+        "Rich cinematic color grading. Hyper-detailed textures. Real human subjects. "
+        "Everything must look like a frame from a prestige Hollywood film."
+    ))
 
-Given the following script scenes, create ONE image generation prompt per scene in English.
+    system_prompt = f"""You are an elite image prompt engineer who has created prompts for top AI image generators (Imagen, Midjourney, DALL-E, Stable Diffusion).
 
-Rules:
-- Each prompt must be a concrete, visual description of what should appear in the image
-- DO NOT use abstract concepts. Convert metaphors into literal visual scenes
-- Style: cinematic, photorealistic, dramatic lighting, 8K ultra HD, shot on ARRI Alexa, shallow depth of field
-- Include: subject, setting, lighting, camera angle, atmosphere
-- For biblical/spiritual scenes: use real human figures, ancient Middle Eastern settings, golden hour or dramatic chiaroscuro lighting
-- Avoid cartoonish, illustrated, or digital art styles. Everything must look like a real photograph or movie still
-- End each prompt with: ", {orientation}, photorealistic, cinematic film still, 8K, no text overlay"
+Your task: Given YouTube video script scenes, generate ONE highly detailed image generation prompt per scene in English.
+
+=== STYLE: {style_desc.upper()} ===
+{style_rules}
+
+=== UNIVERSAL RULES ===
+- Convert ALL abstract concepts and metaphors into CONCRETE, LITERAL visual scenes
+  (BAD: "the concept of freedom" → GOOD: "a lone figure standing on a mountaintop at sunrise, arms outstretched, wind in hair")
+- Every prompt must specify: SUBJECT + SETTING + LIGHTING + CAMERA ANGLE + ATMOSPHERE
+- Lighting is critical — describe the exact light source, direction, and quality
+- NEVER use abstract nouns as the main subject. Always show a scene with action or visual interest
+- End every prompt with: ", {orientation}, {style_desc}, 8K resolution, no text overlay, no watermark"
 - Return ONLY a JSON array of strings, one prompt per scene
-- Number of prompts must exactly match number of scenes: {len(scenes)}
+- Number of prompts must EXACTLY match number of scenes: {len(scenes)}
 
-Script language: {lang}"""
+Script language hint: {lang}"""
 
     try:
         resp = requests.post(

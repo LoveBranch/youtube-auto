@@ -99,6 +99,8 @@ async def run_pipeline(job: Job, req: GenerateRequest):
                 "--aspect-ratio", req.aspect_ratio,
                 "--image-provider", req.image_provider,
             ]
+            if req.style_preset:
+                cmd.extend(["--style-preset", req.style_preset])
             await asyncio.to_thread(
                 subprocess.run, cmd, capture_output=True, timeout=600,
                 env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"},
