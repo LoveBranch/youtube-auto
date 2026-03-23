@@ -170,6 +170,56 @@ def save_audio(audio_bytes: bytes, sample_rate: int, output_path: str) -> None:
         wf.writeframes(audio_bytes)
 
 
+# ── Edge TTS (무료, 제한 없음) ────────────────────────────────────────────────
+
+EDGE_VOICE_MAP: dict[str, dict[str, str]] = {
+    'ko': {
+        'Kore':   'ko-KR-SunHiNeural',
+        'Aoede':  'ko-KR-JiMinNeural',
+        'Leda':   'ko-KR-YuJinNeural',
+        'Charon': 'ko-KR-InJoonNeural',
+        'Fenrir': 'ko-KR-GookMinNeural',
+        'Puck':   'ko-KR-BongJinNeural',
+        'Orus':   'ko-KR-HyunsuNeural',
+        'Zephyr': 'ko-KR-SeoHyeonNeural',
+    },
+    'en': {
+        'Kore':   'en-US-JennyNeural',
+        'Aoede':  'en-US-AriaNeural',
+        'Leda':   'en-US-MichelleNeural',
+        'Charon': 'en-US-GuyNeural',
+        'Fenrir': 'en-US-DavisNeural',
+        'Puck':   'en-US-TonyNeural',
+        'Orus':   'en-US-ChristopherNeural',
+        'Zephyr': 'en-US-EricNeural',
+    },
+    'ja': {
+        'Kore':   'ja-JP-NanamiNeural',
+        'Aoede':  'ja-JP-AoiNeural',
+        'Leda':   'ja-JP-MayuNeural',
+        'Charon': 'ja-JP-KeitaNeural',
+        'Fenrir': 'ja-JP-DaichiNeural',
+        'Puck':   'ja-JP-NaokiNeural',
+        'Orus':   'ja-JP-NaokiNeural',
+        'Zephyr': 'ja-JP-ShioriNeural',
+    },
+}
+
+
+def resolve_edge_voice(voice: str, language: str) -> str:
+    lang = language.split('-')[0].lower()
+    lang_map = EDGE_VOICE_MAP.get(lang, EDGE_VOICE_MAP['en'])
+    return lang_map.get(voice, list(lang_map.values())[0])
+
+
+async def call_edge_tts(text: str, voice: str, language: str, output_path: str) -> None:
+    """Edge TTS로 음성 생성 후 MP3 파일로 저장한다. API 키 불필요, 무제한."""
+    import edge_tts
+    edge_voice = resolve_edge_voice(voice, language)
+    communicate = edge_tts.Communicate(text, edge_voice)
+    await communicate.save(output_path)
+
+
 def resolve_voice(lang: str, settings: dict | None = None) -> str:
     """언어별 기본 음성을 반환한다."""
     if settings is not None:
