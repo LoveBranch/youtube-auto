@@ -21,12 +21,12 @@ class TTSRequest(BaseModel):
 @router.post("/tts-preview")
 async def tts_preview(req: TTSRequest):
     import asyncio
-    from tts import call_gemini_tts, load_settings
+    from tts import call_gemini_tts
+    from server.config import settings
+    from fastapi import HTTPException
 
-    settings = load_settings()
     api_key = settings.get("tts", {}).get("api_key", "")
     if not api_key:
-        from fastapi import HTTPException
         raise HTTPException(status_code=500, detail="TTS API key not configured")
 
     # 짧은 샘플만 — quota 절약
