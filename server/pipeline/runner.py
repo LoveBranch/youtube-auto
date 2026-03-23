@@ -151,5 +151,5 @@ async def run_pipeline(job: Job, req: GenerateRequest):
 
         complete_job(job, outputs)
 
-    except Exception as e:
+    except BaseException as e:
         fail_job(job, str(e))

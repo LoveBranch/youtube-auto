@@ -134,13 +134,11 @@ def call_gemini_tts(text: str, voice: str, language: str, api_key: str) -> tuple
     )
 
     if resp.status_code != 200:
-        print(f"API 오류 ({resp.status_code}): {resp.text[:500]}", file=sys.stderr)
-        sys.exit(1)
+        raise RuntimeError(f"TTS API 오류 ({resp.status_code}): {resp.text[:500]}")
 
     data = resp.json()
     if "error" in data:
-        print(f"API 오류: {data['error']['message']}", file=sys.stderr)
-        sys.exit(1)
+        raise RuntimeError(f"TTS API 오류: {data['error']['message']}")
 
     part = data["candidates"][0]["content"]["parts"][0]
     inline_data = part["inlineData"]
