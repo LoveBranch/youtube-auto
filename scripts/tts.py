@@ -170,61 +170,6 @@ def save_audio(audio_bytes: bytes, sample_rate: int, output_path: str) -> None:
         wf.writeframes(audio_bytes)
 
 
-# ── Edge TTS (무료, 제한 없음) ────────────────────────────────────────────────
-
-EDGE_VOICE_MAP: dict[str, dict[str, str]] = {
-    'ko': {
-        'SunHi':    'ko-KR-SunHiNeural',
-        'JiMin':    'ko-KR-JiMinNeural',
-        'YuJin':    'ko-KR-YuJinNeural',
-        'SeoHyeon': 'ko-KR-SeoHyeonNeural',
-        'InJoon':   'ko-KR-InJoonNeural',
-        'GookMin':  'ko-KR-GookMinNeural',
-        'BongJin':  'ko-KR-BongJinNeural',
-        'Hyunsu':   'ko-KR-HyunsuNeural',
-    },
-    'en': {
-        'Jenny':       'en-US-JennyNeural',
-        'Aria':        'en-US-AriaNeural',
-        'Michelle':    'en-US-MichelleNeural',
-        'Jane':        'en-US-JaneNeural',
-        'Guy':         'en-US-GuyNeural',
-        'Christopher': 'en-US-ChristopherNeural',
-        'Tony':        'en-US-TonyNeural',
-        'Davis':       'en-US-DavisNeural',
-    },
-    'ja': {
-        'Nanami': 'ja-JP-NanamiNeural',
-        'Aoi':    'ja-JP-AoiNeural',
-        'Mayu':   'ja-JP-MayuNeural',
-        'Shiori': 'ja-JP-ShioriNeural',
-        'Keita':  'ja-JP-KeitaNeural',
-        'Daichi': 'ja-JP-DaichiNeural',
-        'Naoki':  'ja-JP-NaokiNeural',
-    },
-    'zh': {
-        'Xiaoxiao': 'zh-CN-XiaoxiaoNeural',
-        'Xiaoyi':   'zh-CN-XiaoyiNeural',
-        'Yunjian':  'zh-CN-YunjianNeural',
-        'Yunxi':    'zh-CN-YunxiNeural',
-    },
-}
-
-
-def resolve_edge_voice(voice: str, language: str) -> str:
-    lang = language.split('-')[0].lower()
-    lang_map = EDGE_VOICE_MAP.get(lang, EDGE_VOICE_MAP['en'])
-    return lang_map.get(voice, list(lang_map.values())[0])
-
-
-async def call_edge_tts(text: str, voice: str, language: str, output_path: str) -> None:
-    """Edge TTS로 음성 생성 후 MP3 파일로 저장한다. API 키 불필요, 무제한."""
-    import edge_tts
-    edge_voice = resolve_edge_voice(voice, language)
-    communicate = edge_tts.Communicate(text, edge_voice)
-    await communicate.save(output_path)
-
-
 def resolve_voice(lang: str, settings: dict | None = None) -> str:
     """언어별 기본 음성을 반환한다."""
     if settings is not None:
