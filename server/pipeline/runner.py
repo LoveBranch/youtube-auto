@@ -21,6 +21,11 @@ def safe_dirname(name: str, max_len: int = 60) -> str:
     return name[:max_len] or "project"
 
 
+def _check_cancelled(job: Job):
+    if job.status == "cancelled":
+        raise RuntimeError("cancelled")
+
+
 async def run_pipeline(job: Job, req: GenerateRequest):
     """전체 파이프라인을 비동기 실행한다."""
     try:
@@ -58,6 +63,7 @@ async def run_pipeline(job: Job, req: GenerateRequest):
                 )
                 script_path.write_text(script_text, encoding="utf-8")
         complete_phase(job, "script")
+        _check_cancelled(job)
 
         # === Phase 2: TTS ===
         update_phase(job, "tts", 0.0)
@@ -72,6 +78,7 @@ async def run_pipeline(job: Job, req: GenerateRequest):
             )
             save_audio(audio_data, sample_rate, str(audio_path))
         complete_phase(job, "tts")
+        _check_cancelled(job)
 
         # === Phase 3: 자막 생성 (Gemini) ===
         update_phase(job, "whisper", 0.0)
@@ -87,6 +94,7 @@ async def run_pipeline(job: Job, req: GenerateRequest):
             )
             srt_path.write_text(srt_text, encoding="utf-8")
         complete_phase(job, "whisper")
+        _check_cancelled(job)
 
         # === Phase 4: 이미지 + 모션 (Grok Aurora) ===
         update_phase(job, "visuals", 0.0)

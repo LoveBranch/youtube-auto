@@ -126,12 +126,22 @@ def call_gemini_tts(text: str, voice: str, language: str, api_key: str) -> tuple
         },
     }
 
-    resp = requests.post(
-        f"{API_URL}?key={api_key}",
-        json=payload,
-        headers={"Content-Type": "application/json"},
-        timeout=600,
-    )
+    import time, re as _re
+    for attempt in range(5):
+        resp = requests.post(
+            f"{API_URL}?key={api_key}",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=600,
+        )
+        if resp.status_code == 429:
+            retry_match = _re.search(r"retry in ([\d.]+)s", resp.text)
+            wait = float(retry_match.group(1)) if retry_match else 60
+            wait = min(wait + 5, 120)
+            print(f"[TTS] 429 quota exceeded, {wait:.0f}초 후 재시도... (시도 {attempt+1}/5)", file=sys.stderr)
+            time.sleep(wait)
+            continue
+        break
 
     if resp.status_code != 200:
         raise RuntimeError(f"TTS API 오류 ({resp.status_code}): {resp.text[:500]}")
