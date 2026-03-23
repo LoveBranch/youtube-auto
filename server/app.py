@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from server.routes import generate, status, download, analyze, remix, tts_preview
+from server.routes import generate, status, download, analyze, remix
 
 app = FastAPI(title="YouTube Auto API", version="1.0.0")
 
@@ -20,7 +20,7 @@ app.include_router(status.router, prefix="/api", tags=["status"])
 app.include_router(download.router, prefix="/api", tags=["download"])
 app.include_router(analyze.router, prefix="/api", tags=["analyze"])
 app.include_router(remix.router, prefix="/api", tags=["remix"])
-app.include_router(tts_preview.router, prefix="/api", tags=["tts"])
+
 
 
 @app.get("/")
