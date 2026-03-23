@@ -1,0 +1,16 @@
+{
+  "buildSteps": [
+    {
+      "name": "setup",
+      "nixPackages": ["ffmpeg"]
+    },
+    {
+      "name": "install",
+      "commands": ["pip install -r requirements.txt"],
+      "secrets": []
+    }
+  ],
+  "deploy": {
+    "startCommand": "uvicorn server.app:app --host 0.0.0.0 --port $PORT"
+  }
+}
