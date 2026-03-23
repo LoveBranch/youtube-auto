@@ -34,7 +34,7 @@ async def run_pipeline(job: Job, req: GenerateRequest):
         project_dir.mkdir(parents=True, exist_ok=True)
 
         script_path = project_dir / "script.md"
-        audio_path = project_dir / "audio.mp3"
+        audio_path = project_dir / "audio.wav"
         srt_path = project_dir / "subtitle.srt"
         visuals_dir = project_dir / "visuals"
         final_mp4 = project_dir / "final.mp4"
@@ -68,13 +68,15 @@ async def run_pipeline(job: Job, req: GenerateRequest):
         # === Phase 2: TTS ===
         update_phase(job, "tts", 0.0)
         if not audio_path.exists():
-            from tts import extract_narration
-            from gtts import gTTS
+            from tts import extract_narration, call_gemini_tts, resolve_voice, save_audio
 
+            voice = req.voice or resolve_voice(req.language, settings)
             text = extract_narration(script_path.read_text(encoding="utf-8"))
-            lang_code = (req.language or 'ko').split('-')[0]
-            tts = gTTS(text=text, lang=lang_code)
-            await asyncio.to_thread(tts.save, str(audio_path))
+            api_key = settings.get("tts", {}).get("api_key", "")
+            audio_bytes, sample_rate = await asyncio.to_thread(
+                call_gemini_tts, text, voice, req.language, api_key
+            )
+            save_audio(audio_bytes, sample_rate, str(audio_path))
         complete_phase(job, "tts")
         _check_cancelled(job)
 
