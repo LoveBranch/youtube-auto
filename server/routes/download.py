@@ -34,10 +34,12 @@ async def download_result(job_id: str, format: str = Query("mp4", pattern="^(mp4
         project_name = job.outputs.get("capcut_project")
         if not project_name:
             raise HTTPException(404, "CapCut 프로젝트가 없습니다")
-        capcut_dir = Path(settings.get("capcut", {}).get("project_dir", ""))
+        # Use saved capcut_dir from job outputs, fall back to settings
+        capcut_dir_str = job.outputs.get("capcut_dir") or settings.get("capcut", {}).get("project_dir", "")
+        capcut_dir = Path(capcut_dir_str)
         project_dir = capcut_dir / project_name
         if not project_dir.exists():
-            raise HTTPException(404, "CapCut 프로젝트 폴더가 없습니다")
+            raise HTTPException(404, f"CapCut 프로젝트 폴더가 없습니다: {project_dir}")
         zip_path = project_dir.parent / f"{project_name}.zip"
         zip_capcut_project(project_dir, zip_path)
         return FileResponse(zip_path, media_type="application/zip", filename=f"{project_name}.zip")

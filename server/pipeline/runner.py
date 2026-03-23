@@ -141,20 +141,21 @@ async def run_pipeline(job: Job, req: GenerateRequest):
         if req.output_format in ("capcut", "both"):
             update_phase(job, "capcut", 0.0)
             import subprocess
-            capcut_dir = settings.get("capcut", {}).get("project_dir", "")
+            # Use settings capcut dir if set (local), otherwise use a path inside project dir
+            capcut_dir = settings.get("capcut", {}).get("project_dir", "") or str(project_dir / "capcut_export")
             cmd = [
                 sys.executable, str(BASE_DIR / "scripts" / "capcut_project.py"),
                 str(audio_path), str(srt_path), req.topic,
                 "--aspect-ratio", req.aspect_ratio,
                 "--scenes-dir", str(visuals_dir),
+                "--capcut-dir", capcut_dir,
             ]
-            if capcut_dir:
-                cmd.extend(["--capcut-dir", capcut_dir])
             await asyncio.to_thread(
                 subprocess.run, cmd, capture_output=True, timeout=120,
                 env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"},
             )
             outputs["capcut_project"] = project_name
+            outputs["capcut_dir"] = capcut_dir
             complete_phase(job, "capcut")
 
         complete_job(job, outputs)
