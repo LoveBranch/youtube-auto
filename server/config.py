@@ -27,6 +27,10 @@ def load_settings() -> dict:
     if xai_key:
         data.setdefault("xai", {})["api_key"] = xai_key
 
+    youtube_key = os.environ.get("YOUTUBE_API_KEY", "")
+    if youtube_key:
+        data.setdefault("youtube", {})["api_key"] = youtube_key
+
     return data
 
 
