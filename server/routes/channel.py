@@ -2,6 +2,7 @@
 
 import json
 import re
+from urllib.parse import unquote
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import requests
@@ -20,7 +21,7 @@ class ChannelAnalyzeRequest(BaseModel):
 
 def extract_channel_id(url: str) -> str:
     """YouTube URL에서 채널 ID 또는 handle 추출."""
-    url = url.strip().rstrip("/")
+    url = unquote(url.strip().rstrip("/"))
     # @handle
     m = re.search(r"youtube\.com/@([\w.-]+)", url)
     if m:
