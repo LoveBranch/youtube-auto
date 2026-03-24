@@ -98,7 +98,8 @@ async def run_pipeline(job: Job, req: GenerateRequest):
 
         # === Phase 4: 이미지 + 모션 (Grok Aurora) ===
         update_phase(job, "visuals", 0.0)
-        if not visuals_dir.exists() or not list(visuals_dir.glob("scene_*.mp4")):
+        visuals_dir.mkdir(parents=True, exist_ok=True)
+        if not list(visuals_dir.glob("scene_*.mp4")):
             import subprocess
             cmd = [
                 sys.executable, str(BASE_DIR / "scripts" / "cloud_visual.py"),
@@ -109,10 +110,17 @@ async def run_pipeline(job: Job, req: GenerateRequest):
             ]
             if req.style_preset:
                 cmd.extend(["--style-preset", req.style_preset])
-            await asyncio.to_thread(
+            result = await asyncio.to_thread(
                 subprocess.run, cmd, capture_output=True, timeout=600,
                 env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"},
             )
+            if result.returncode != 0:
+                stderr = result.stderr.decode("utf-8", errors="replace").strip()
+                stdout = result.stdout.decode("utf-8", errors="replace").strip()
+                raise RuntimeError(f"Visual generation failed (exit {result.returncode}): {stderr or stdout or 'no output'}")
+        scene_count = len(list(visuals_dir.glob("scene_*.mp4")))
+        if scene_count == 0:
+            raise RuntimeError(f"Visual generation produced no scene clips in: {visuals_dir}")
         complete_phase(job, "visuals")
 
         # === Phase 5: 최종 MP4 합성 ===
