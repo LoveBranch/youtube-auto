@@ -59,7 +59,7 @@ async def run_pipeline(job: Job, req: GenerateRequest):
 
                 script_text = await asyncio.to_thread(
                     generate_script, req.topic, req.language, req.duration_minutes,
-                    style_profile, req.source_content
+                    style_profile, req.source_content, req.style_preset
                 )
                 script_path.write_text(script_text, encoding="utf-8")
         complete_phase(job, "script")
