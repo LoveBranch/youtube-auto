@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -39,8 +40,12 @@ def generate_cloud_visuals(
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    api_key_gemini = SETTINGS.get("tts", {}).get("api_key", "")
-    api_key_xai = SETTINGS.get("xai", {}).get("api_key", "")
+    api_key_gemini = (
+        SETTINGS.get("tts", {}).get("api_key", "")
+        or SETTINGS.get("gemini", {}).get("api_key", "")
+        or os.environ.get("GEMINI_API_KEY", "")
+    )
+    api_key_xai = SETTINGS.get("xai", {}).get("api_key", "") or os.environ.get("XAI_API_KEY", "")
 
     if image_provider == "grok" and not api_key_xai:
         print("오류: settings.json에 xai.api_key가 없음", file=sys.stderr)
