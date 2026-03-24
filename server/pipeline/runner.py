@@ -49,8 +49,8 @@ async def run_pipeline(job: Job, req: GenerateRequest):
             else:
                 from server.pipeline.script_gen import generate_script
 
-                style_profile = None
-                if req.style_reference_url:
+                style_profile = req.channel_style_profile or None
+                if not style_profile and req.style_reference_url:
                     from server.pipeline.style_analyzer import analyze_style
                     style_profile = await asyncio.to_thread(
                         analyze_style, url=req.style_reference_url, language=req.language
@@ -136,6 +136,20 @@ async def run_pipeline(job: Job, req: GenerateRequest):
             # 미리보기 생성
             await asyncio.to_thread(generate_preview, final_mp4, preview_mp4)
             outputs["preview"] = str(preview_mp4)
+
+            # 썸네일 생성 (채널 템플릿이 있을 경우)
+            if req.thumbnail_template:
+                from server.pipeline.thumbnail_template import render_thumbnail
+                thumbnail_path = project_dir / "thumbnail.jpg"
+                # 첫 번째 씬 이미지를 배경으로 사용
+                bg_images = sorted(visuals_dir.glob("scene_*.jpg")) + sorted(visuals_dir.glob("scene_*.png"))
+                bg_path = str(bg_images[0]) if bg_images else None
+                await asyncio.to_thread(
+                    render_thumbnail,
+                    req.topic, bg_path, req.thumbnail_template, str(thumbnail_path),
+                )
+                outputs["thumbnail"] = str(thumbnail_path)
+
             complete_phase(job, "compositing")
 
         if req.output_format in ("capcut", "both"):
