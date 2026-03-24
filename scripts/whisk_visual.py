@@ -284,6 +284,13 @@ STYLE_PRESET_GUIDES = {
 
 def generate_image_prompts(scenes: list[dict], lang: str, aspect_ratio: str, api_key: str = "", style_preset: str | None = None) -> list[dict]:
     """Gemini API로 대본 내용을 시각적 이미지 프롬프트로 변환한다."""
+    # Normalize scenes: ensure index and text_preview exist
+    for i, scene in enumerate(scenes):
+        if "index" not in scene:
+            scene["index"] = i + 1
+        if "text_preview" not in scene:
+            scene["text_preview"] = scene.get("text", "")[:200]
+
     orientation = {
         "16:9": "wide landscape",
         "9:16": "tall portrait, vertical",
