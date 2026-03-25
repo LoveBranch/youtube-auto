@@ -22,7 +22,7 @@ def load_settings() -> dict:
 def generate_image_gemini(prompt: str, api_key: str, output_path: str) -> str:
     """Gemini 2.0 Flash로 이미지를 생성하여 저장한다."""
     resp = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key={api_key}",
+        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key={api_key}",
         json={
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"responseModalities": ["IMAGE", "TEXT"]},
