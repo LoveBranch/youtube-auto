@@ -1,5 +1,19 @@
 # YouTube Auto - 유튜브 영상 자동 제작 파이프라인
 
+## ⚠️ 절대 규칙 (반드시 준수)
+
+1. **새 스크립트를 절대 만들지 마라.** `scripts/` 폴더에 모든 도구가 이미 있다.
+2. **Gemini API를 직접 호출하지 마라.** 기존 스크립트가 API 호출 + rate limit 재시도를 처리한다.
+3. **모델을 임의로 변경하지 마라.** 429 에러가 나면 스크립트 내부 재시도 로직이 처리한다.
+4. **반드시 아래 파이프라인 순서대로 기존 스크립트를 실행하라:**
+   - TTS → `py scripts/tts.py`
+   - 자막 → `py scripts/whisper_srt.py`
+   - 이미지/모션 → `py scripts/whisk_visual.py`
+   - CapCut → `py scripts/capcut_project.py`
+5. **API 키를 하드코딩하거나 새 설정 파일을 만들지 마라.** `settings.json`에서 자동 로드된다.
+
+---
+
 ## 프로젝트 개요
 대본 작성 → TTS 음성 생성 → Whisper 자막 생성 → Whisk 이미지 + ffmpeg 모션 영상 → CapCut 프로젝트 생성을 자동화하는 도구.
 "영상 만들어줘" 한 번이면 **롱폼(16:9) + 숏츠(9:16)** 두 가지가 동시에 생성된다.
