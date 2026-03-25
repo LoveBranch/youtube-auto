@@ -75,7 +75,7 @@ def analyze_style(video_path: Path | None = None, url: str | None = None, langua
 
 JSON만 출력하세요."""})
 
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key={api_key}"
     payload = {"contents": [{"parts": parts}]}
 
     resp = requests.post(api_url, json=payload, timeout=60)
