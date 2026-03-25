@@ -69,28 +69,37 @@ SRT format example:
 00:00:03,500 --> 00:00:06,200
 두 번째 자막 내용"""
 
+    import time as _time
     print("Gemini 음성 인식 중...")
-    resp = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}",
-        json={
-            "contents": [{
-                "parts": [
-                    {
-                        "inlineData": {
-                            "mimeType": mime_type,
-                            "data": audio_b64,
-                        }
-                    },
-                    {"text": prompt},
-                ]
-            }],
-            "generationConfig": {
-                "temperature": 0.1,
-            },
+    payload = {
+        "contents": [{
+            "parts": [
+                {
+                    "inlineData": {
+                        "mimeType": mime_type,
+                        "data": audio_b64,
+                    }
+                },
+                {"text": prompt},
+            ]
+        }],
+        "generationConfig": {
+            "temperature": 0.1,
         },
-        timeout=120,
-    )
-    resp.raise_for_status()
+    }
+    for attempt in range(3):
+        resp = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}",
+            json=payload,
+            timeout=120,
+        )
+        if resp.status_code == 429:
+            wait = 30 * (attempt + 1)
+            print(f"[gemini_srt] 429 rate limit, {wait}s 후 재시도 ({attempt+1}/3)...")
+            _time.sleep(wait)
+            continue
+        resp.raise_for_status()
+        break
     data = resp.json()
 
     text = data["candidates"][0]["content"]["parts"][0]["text"]

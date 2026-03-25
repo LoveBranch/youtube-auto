@@ -376,16 +376,25 @@ Your task: Given YouTube video script scenes, generate ONE highly detailed image
 
 Script language hint: {lang}"""
 
+    import time as _time
     try:
-        resp = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}",
-            json={
-                "contents": [{"parts": [{"text": f"{system_prompt}\n\n--- SCENES ---\n{scenes_text}"}]}],
-                "generationConfig": {"temperature": 0.7, "responseMimeType": "application/json"},
-            },
-            timeout=60,
-        )
-        resp.raise_for_status()
+        payload = {
+            "contents": [{"parts": [{"text": f"{system_prompt}\n\n--- SCENES ---\n{scenes_text}"}]}],
+            "generationConfig": {"temperature": 0.7, "responseMimeType": "application/json"},
+        }
+        for attempt in range(3):
+            resp = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}",
+                json=payload,
+                timeout=60,
+            )
+            if resp.status_code == 429:
+                wait = 30 * (attempt + 1)
+                print(f"[whisk_visual] 429 rate limit, {wait}s 후 재시도 ({attempt+1}/3)...")
+                _time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            break
         data = resp.json()
         text = data["candidates"][0]["content"]["parts"][0]["text"]
         prompts = json.loads(text)

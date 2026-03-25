@@ -62,6 +62,7 @@ def generate_cloud_visuals(
     print("이미지 프롬프트 생성 완료")
 
     # 3) 씬별 이미지 + 영상 클립 생성
+    errors: list[str] = []
     for scene in scenes:
         idx = scene["index"]
         image_file = out / f"scene_{idx:03d}.jpg"
@@ -82,7 +83,9 @@ def generate_cloud_visuals(
                     from gemini_image import generate_image_gemini
                     generate_image_gemini(scene["image_prompt"], api_key_gemini, str(image_file))
             except Exception as e:
-                print(f"  이미지 생성 실패 (scene {idx}): {e}", file=sys.stderr)
+                msg = f"이미지 생성 실패 (scene {idx}): {e}"
+                print(f"  {msg}", file=sys.stderr)
+                errors.append(msg)
                 continue
 
         # Ken Burns 영상 클립
@@ -91,13 +94,23 @@ def generate_cloud_visuals(
         try:
             image_to_clip(str(image_file), str(video_file), duration=duration, aspect_ratio=aspect_ratio)
         except Exception as e:
-            print(f"  영상 클립 실패 (scene {idx}): {e}", file=sys.stderr)
+            msg = f"영상 클립 실패 (scene {idx}): {e}"
+            print(f"  {msg}", file=sys.stderr)
+            errors.append(msg)
 
     # scenes.json 저장
     (out / "scenes.json").write_text(
         json.dumps(scenes, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    print(f"완료: {out}")
+
+    # 클립이 하나도 없으면 에러와 함께 exit 1
+    clip_count = len(list(out.glob("scene_*.mp4")))
+    if clip_count == 0:
+        err_summary = "\n".join(errors) if errors else "알 수 없는 오류 (stderr 로그 확인)"
+        print(f"오류: 생성된 영상 클립 없음.\n{err_summary}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"완료: {out} ({clip_count}개 클립)")
 
 
 def main() -> None:

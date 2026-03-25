@@ -122,8 +122,16 @@ def generate_script(
         "generationConfig": {"temperature": 0.8, "maxOutputTokens": 8192},
     }
 
-    resp = requests.post(url, json=payload, timeout=60)
-    resp.raise_for_status()
+    import time
+    for attempt in range(3):
+        resp = requests.post(url, json=payload, timeout=60)
+        if resp.status_code == 429:
+            wait = 30 * (attempt + 1)
+            print(f"[script_gen] 429 rate limit, {wait}s 후 재시도 ({attempt+1}/3)...")
+            time.sleep(wait)
+            continue
+        resp.raise_for_status()
+        break
     data = resp.json()
 
     text = ""
