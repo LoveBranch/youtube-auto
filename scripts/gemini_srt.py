@@ -102,6 +102,9 @@ SRT format example:
         break
     data = resp.json()
 
+    if "candidates" not in data:
+        raise ValueError(f"Gemini SRT 응답에 candidates 없음. 전체 응답: {data}")
+
     text = data["candidates"][0]["content"]["parts"][0]["text"]
 
     # 코드 블록 제거
