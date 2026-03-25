@@ -22,7 +22,7 @@ def load_settings() -> dict:
 def generate_image_gemini(prompt: str, api_key: str, output_path: str) -> str:
     """Imagen 3으로 이미지를 생성하여 저장한다."""
     resp = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key={api_key}",
+        f"https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-fast-generate-001:predict?key={api_key}",
         json={
             "instances": [{"prompt": prompt}],
             "parameters": {"sampleCount": 1},

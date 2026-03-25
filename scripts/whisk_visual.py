@@ -467,7 +467,7 @@ def generate_gemini_images(scenes: list[dict], output_dir: Path, api_key: str, a
 
         try:
             resp = requests.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key={api_key}",
+                f"https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-fast-generate-001:predict?key={api_key}",
                 json={
                     "instances": [{"prompt": scene["image_prompt"]}],
                     "parameters": {
