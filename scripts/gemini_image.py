@@ -1,5 +1,5 @@
 """
-Gemini 2.0 Flash 이미지 생성 (무료 티어 사용 가능)
+Imagen 3 이미지 생성 (Google Generative Language API)
 
 settings.json의 tts.api_key를 재사용한다.
 """
@@ -20,23 +20,23 @@ def load_settings() -> dict:
 
 
 def generate_image_gemini(prompt: str, api_key: str, output_path: str) -> str:
-    """Gemini 2.0 Flash로 이미지를 생성하여 저장한다."""
+    """Imagen 3으로 이미지를 생성하여 저장한다."""
     resp = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key={api_key}",
+        f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key={api_key}",
         json={
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"responseModalities": ["IMAGE", "TEXT"]},
+            "instances": [{"prompt": prompt}],
+            "parameters": {"sampleCount": 1},
         },
-        timeout=120,
+        timeout=90,
     )
     resp.raise_for_status()
     data = resp.json()
 
-    for candidate in data.get("candidates", []):
-        for part in candidate.get("content", {}).get("parts", []):
-            if "inlineData" in part:
-                img_bytes = base64.b64decode(part["inlineData"]["data"])
-                Path(output_path).write_bytes(img_bytes)
-                return output_path
+    predictions = data.get("predictions", [])
+    if predictions:
+        img_b64 = predictions[0].get("bytesBase64Encoded", "")
+        if img_b64:
+            Path(output_path).write_bytes(base64.b64decode(img_b64))
+            return output_path
 
-    raise ValueError(f"Gemini 이미지 생성 실패: {data}")
+    raise ValueError(f"Imagen 이미지 생성 실패: {data}")
