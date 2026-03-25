@@ -116,7 +116,7 @@ def generate_script(
 
 대본만 출력하세요. 설명이나 주석은 넣지 마세요."""
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.8, "maxOutputTokens": 8192},
