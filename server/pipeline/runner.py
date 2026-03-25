@@ -114,10 +114,14 @@ async def run_pipeline(job: Job, req: GenerateRequest):
                 subprocess.run, cmd, capture_output=True, timeout=600,
                 env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"},
             )
+            stdout_txt = result.stdout.decode("utf-8", errors="replace").strip()
+            stderr_txt = result.stderr.decode("utf-8", errors="replace").strip()
+            if stdout_txt:
+                print("[cloud_visual stdout]", stdout_txt)
+            if stderr_txt:
+                print("[cloud_visual stderr]", stderr_txt)
             if result.returncode != 0:
-                stderr = result.stderr.decode("utf-8", errors="replace").strip()
-                stdout = result.stdout.decode("utf-8", errors="replace").strip()
-                raise RuntimeError(f"Visual generation failed (exit {result.returncode}): {stderr or stdout or 'no output'}")
+                raise RuntimeError(f"Visual generation failed (exit {result.returncode}): {stderr_txt or stdout_txt or 'no output'}")
         scene_count = len(list(visuals_dir.glob("scene_*.mp4")))
         if scene_count == 0:
             raise RuntimeError(f"Visual generation produced no scene clips in: {visuals_dir}")
