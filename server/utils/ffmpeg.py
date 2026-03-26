@@ -31,7 +31,7 @@ def composite_final_video(
     try:
         # 1단계: 씬 영상 합치기
         concat_path = output_path.with_suffix(".concat.mp4")
-        subprocess.run(
+        r1 = subprocess.run(
             [
                 "ffmpeg", "-y", "-f", "concat", "-safe", "0",
                 "-i", concat_file,
@@ -42,10 +42,12 @@ def composite_final_video(
             ],
             capture_output=True, timeout=300,
         )
+        if r1.returncode != 0:
+            raise RuntimeError(f"ffmpeg concat 실패 (exit {r1.returncode}): {r1.stderr.decode(errors='ignore')[-500:]}")
 
         # 2단계: 오디오 + 자막 합성
         srt_path_posix = srt_path.as_posix()
-        subprocess.run(
+        r2 = subprocess.run(
             [
                 "ffmpeg", "-y",
                 "-i", str(concat_path),
@@ -59,6 +61,8 @@ def composite_final_video(
             ],
             capture_output=True, timeout=300,
         )
+        if r2.returncode != 0:
+            raise RuntimeError(f"ffmpeg 합성 실패 (exit {r2.returncode}): {r2.stderr.decode(errors='ignore')[-500:]}")
 
         # 임시 파일 정리
         concat_path.unlink(missing_ok=True)
@@ -71,7 +75,7 @@ def composite_final_video(
 
 def generate_preview(input_path: Path, output_path: Path, max_height: int = 480) -> Path:
     """저해상도 미리보기 영상을 생성한다."""
-    subprocess.run(
+    r = subprocess.run(
         [
             "ffmpeg", "-y", "-i", str(input_path),
             "-vf", f"scale=-2:{max_height}",
@@ -81,4 +85,6 @@ def generate_preview(input_path: Path, output_path: Path, max_height: int = 480)
         ],
         capture_output=True, timeout=300,
     )
+    if r.returncode != 0:
+        raise RuntimeError(f"ffmpeg preview 실패 (exit {r.returncode}): {r.stderr.decode(errors='ignore')[-300:]}")
     return output_path
