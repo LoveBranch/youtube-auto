@@ -61,47 +61,75 @@ def generate_cloud_visuals(
     scenes = generate_image_prompts(scenes, lang, aspect_ratio, api_key_gemini, style_preset=style_preset)
     print("이미지 프롬프트 생성 완료")
 
-    # 3) 씬별 이미지 + 영상 클립 생성
+    # 3) 씬별 이미지 + 영상 클립 생성 (병렬)
+    import concurrent.futures
+
     errors: list[str] = []
-    for scene in scenes:
+    MAX_PARALLEL_IMAGES = 5  # Imagen API rate limit 고려
+
+    # --- 3a) 이미지 병렬 생성 ---
+    def _generate_one_image(scene):
+        idx = scene["index"]
+        image_file = out / f"scene_{idx:03d}.jpg"
+        if image_file.exists():
+            return None
+        print(f"  [{idx}/{len(scenes)}] 이미지 생성 중: {scene.get('title', '')}")
+        try:
+            if image_provider == "grok":
+                from grok_visual import generate_image_grok
+                generate_image_grok(scene["image_prompt"], api_key_xai, str(image_file))
+            else:
+                from gemini_image import generate_image_gemini
+                generate_image_gemini(scene["image_prompt"], api_key_gemini, str(image_file))
+            return None
+        except Exception as e:
+            return f"이미지 생성 실패 (scene {idx}): {e}"
+
+    todo_images = [s for s in scenes if not (out / f"scene_{s['index']:03d}.jpg").exists()]
+    if todo_images:
+        print(f"\n=== 이미지 병렬 생성 ({len(todo_images)}개, 동시 {MAX_PARALLEL_IMAGES}개) ===")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_PARALLEL_IMAGES) as pool:
+            results = list(pool.map(_generate_one_image, todo_images))
+        for r in results:
+            if r:
+                print(f"  {r}", file=sys.stderr)
+                errors.append(r)
+
+    # --- 3b) 영상 클립 순차 생성 (ffmpeg는 CPU 집약적이므로 순차) ---
+    MAX_PARALLEL_CLIPS = 2
+    def _generate_one_clip(scene):
         idx = scene["index"]
         image_file = out / f"scene_{idx:03d}.jpg"
         video_file = out / f"scene_{idx:03d}.mp4"
 
         if video_file.exists():
-            # 손상된 파일(50KB 미만)은 삭제 후 재생성
             if video_file.stat().st_size < 50_000:
-                print(f"  [경고] scene_{idx:03d}.mp4 손상 감지 (크기: {video_file.stat().st_size}B), 재생성")
+                print(f"  [경고] scene_{idx:03d}.mp4 손상 감지, 재생성")
                 video_file.unlink()
             else:
-                print(f"  [스킵] scene_{idx:03d}.mp4 이미 존재")
-                continue
+                return None
 
-        # 이미지 생성
         if not image_file.exists():
-            print(f"  [{idx}/{len(scenes)}] 이미지 생성 중: {scene.get('title', '')}")
-            try:
-                if image_provider == "grok":
-                    from grok_visual import generate_image_grok
-                    generate_image_grok(scene["image_prompt"], api_key_xai, str(image_file))
-                else:
-                    from gemini_image import generate_image_gemini
-                    generate_image_gemini(scene["image_prompt"], api_key_gemini, str(image_file))
-            except Exception as e:
-                msg = f"이미지 생성 실패 (scene {idx}): {e}"
-                print(f"  {msg}", file=sys.stderr)
-                errors.append(msg)
-                continue
+            return None
 
-        # Ken Burns 영상 클립
         duration = scene.get("duration", 4.0)
         print(f"  [{idx}/{len(scenes)}] 영상 클립 생성 중...")
         try:
             image_to_clip(str(image_file), str(video_file), duration=duration, aspect_ratio=aspect_ratio)
+            return None
         except Exception as e:
-            msg = f"영상 클립 실패 (scene {idx}): {e}"
-            print(f"  {msg}", file=sys.stderr)
-            errors.append(msg)
+            return f"영상 클립 실패 (scene {idx}): {e}"
+
+    todo_clips = [s for s in scenes if not (out / f"scene_{s['index']:03d}.mp4").exists()
+                  or (out / f"scene_{s['index']:03d}.mp4").stat().st_size < 50_000]
+    if todo_clips:
+        print(f"\n=== 영상 클립 생성 ({len(todo_clips)}개, 동시 {MAX_PARALLEL_CLIPS}개) ===")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_PARALLEL_CLIPS) as pool:
+            results = list(pool.map(_generate_one_clip, todo_clips))
+        for r in results:
+            if r:
+                print(f"  {r}", file=sys.stderr)
+                errors.append(r)
 
     # scenes.json 저장
     (out / "scenes.json").write_text(
