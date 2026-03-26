@@ -447,7 +447,7 @@ def make_text_material(text: str, font_path: str) -> tuple[dict, str]:
         "shadow_angle": -45.0,
         "border_alpha": 1.0,
         "border_color": "#000000",
-        "border_width": 0.08,
+        "border_width": 0.15,
         "style_name": "",
         "text_color": "#FFFFFF",
         "text_alpha": 1.0,
@@ -675,7 +675,7 @@ def build_draft(
         text_clip = {
             "scale": {"x": 1.0, "y": 1.0},
             "rotation": 0.0,
-            "transform": {"x": 0.0, "y": 0.75},
+            "transform": {"x": 0.0, "y": -0.75},
             "flip": {"vertical": False, "horizontal": False},
             "alpha": 1.0,
         }

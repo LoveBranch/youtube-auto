@@ -364,12 +364,39 @@ Your task: Given YouTube video script scenes, generate ONE highly detailed image
 === STYLE: {style_desc.upper()} ===
 {style_rules}
 
+=== CAMERA & COMPOSITION (mandatory variety) ===
+You MUST cycle through different camera setups across scenes. Never repeat the same setup for consecutive scenes.
+- Camera angles: extreme close-up, close-up, medium shot, wide shot, extreme wide shot, bird's eye view, low angle, dutch angle, over-the-shoulder
+- Lens types: 24mm wide angle, 35mm, 50mm standard, 85mm portrait, 135mm telephoto, macro lens, anamorphic lens
+- Composition: rule of thirds, centered symmetry, leading lines, frame within frame, negative space, foreground bokeh, depth layering
+
+=== HUMAN SUBJECTS (when people appear) ===
+- Specify age range (e.g., "a woman in her early 30s"), ethnicity/skin tone, facial expression (e.g., "furrowed brow with a subtle smile of determination")
+- Describe clothing with texture and color (e.g., "wearing a rumpled charcoal linen blazer over a white crew-neck tee")
+- Include body pose, hand gestures, and gaze direction (e.g., "leaning forward with chin resting on interlaced fingers, gazing slightly camera-left")
+- Hair style and notable physical details when relevant
+
+=== EMOTION & ATMOSPHERE ===
+- Each scene must convey a specific emotion: tension, hope, wonder, anxiety, serenity, excitement, melancholy, awe, urgency, warmth
+- Match the color palette to the emotion:
+  * Hope/warmth → golden hour, amber tones, soft warm highlights
+  * Tension/anxiety → desaturated teal-orange, harsh shadows, cool steel blues
+  * Wonder/futuristic → neon accents, holographic tints, iridescent highlights
+  * Calm/serenity → pastel dawn colors, soft diffused light, muted earth tones
+- Describe the ambient mood: "thick morning fog diffusing light", "dust particles floating in a shaft of sunlight", "rain-slicked reflections on asphalt"
+
+=== LIGHTING (be ultra-specific) ===
+- Name the exact light source: "golden hour sunlight streaming through floor-to-ceiling windows", "cool blue LED strip lighting from below", "overhead fluorescent casting flat even light with green tint"
+- Specify direction: front-lit, side-lit, backlit, rim-lit, top-lit, under-lit
+- Describe shadow quality: hard shadows, soft diffused shadows, dappled shadows through blinds, no visible shadows
+- Include secondary/fill lighting when relevant: "warm practical lamp in background", "reflected bounce light from a white wall"
+
 === UNIVERSAL RULES ===
 - Convert ALL abstract concepts and metaphors into CONCRETE, LITERAL visual scenes
   (BAD: "the concept of freedom" → GOOD: "a lone figure standing on a mountaintop at sunrise, arms outstretched, wind in hair")
-- Every prompt must specify: SUBJECT + SETTING + LIGHTING + CAMERA ANGLE + ATMOSPHERE
-- Lighting is critical — describe the exact light source, direction, and quality
+- Every prompt MUST include ALL of: SUBJECT + SETTING + LIGHTING + CAMERA ANGLE + LENS + EMOTION + ATMOSPHERE + COLOR PALETTE
 - NEVER use abstract nouns as the main subject. Always show a scene with action or visual interest
+- Each prompt should be 80-150 words for maximum detail
 - End every prompt with: ", {orientation}, {style_desc}, 8K resolution, no text overlay, no watermark"
 - Return ONLY a JSON array of strings, one prompt per scene
 - Number of prompts must EXACTLY match number of scenes: {len(scenes)}
@@ -1253,12 +1280,9 @@ def main() -> None:
         print(f"\n=== 이미지 생성 [Grok Aurora] ({len(missing)}개) ===")
         generate_grok_images(scenes, output_dir, xai_api_key, args.aspect_ratio)
     else:
-        # 무료: Whisk
-        if not whisk_cookie:
-            print("오류: Whisk 쿠키가 없습니다. settings.json에 whisk.cookie를 설정하세요.", file=sys.stderr)
-            sys.exit(1)
-        print(f"\n=== 이미지 생성 [Whisk ImageFX] ({len(missing)}개) ===")
-        generate_whisk_images(scenes, output_dir, api_key, args.aspect_ratio, whisk_cookie=whisk_cookie)
+        # 무료: Imagen
+        print(f"\n=== 이미지 생성 [Imagen] ({len(missing)}개) ===")
+        generate_gemini_images(scenes, output_dir, api_key, args.aspect_ratio)
 
     missing = [s for s in scenes if not (output_dir / s["image_file"]).exists()]
     if missing:
