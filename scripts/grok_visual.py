@@ -53,16 +53,41 @@ def image_to_clip(image_path: str, output_path: str, duration: float = 4.0, aspe
     fps = 25
     frames = int(duration * fps)
 
-    # Ken Burns (줌인 효과)
-    # 정적 클립 생성 (zoompan은 메모리를 과도하게 사용해 Railway에서 OOM 발생)
+    # Ken Burns 효과 (Railway 메모리 최적화 버전)
+    # 출력 해상도를 1280x720으로 낮추고 스케일업을 1.5배로 제한하여 OOM 방지
+    cloud_w, cloud_h = (1280, 720) if aspect_ratio == "16:9" else (720, 1280) if aspect_ratio == "9:16" else (720, 720)
+    sw, sh = int(cloud_w * 1.5), int(cloud_h * 1.5)
+    # 씬 인덱스에 따라 효과 순환
+    import hashlib
+    effect_idx = int(hashlib.md5(image_path.encode()).hexdigest(), 16) % 4
+    effects = ["zoom_in", "zoom_out", "pan_left", "pan_right"]
+    effect = effects[effect_idx]
+    smooth = f"(1/(1+exp(-12*(on/{frames}-0.5))))"
+    if effect == "zoom_in":
+        z = f"1+0.15*{smooth}"
+        x = "iw/2-(iw/zoom/2)"
+        y = "ih/2-(ih/zoom/2)"
+    elif effect == "zoom_out":
+        z = f"1.15-0.15*{smooth}"
+        x = "iw/2-(iw/zoom/2)"
+        y = "ih/2-(ih/zoom/2)"
+    elif effect == "pan_left":
+        z = "1.12"
+        x = f"(iw*0.06)*(1-{smooth})"
+        y = "ih/2-(ih/zoom/2)"
+    else:
+        z = "1.12"
+        x = f"(iw*0.06)*{smooth}"
+        y = "ih/2-(ih/zoom/2)"
+    vf = f"scale={sw}x{sh},zoompan=z='{z}':x='{x}':y='{y}':d={frames}:s={cloud_w}x{cloud_h}:fps={fps}"
+
     result = subprocess.run(
         [
             "ffmpeg", "-y",
             "-loop", "1", "-i", image_path,
-            "-t", str(duration),
-            "-vf", f"scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2",
+            "-vf", vf,
             "-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p",
-            "-r", str(fps),
+            "-t", str(duration),
             output_path,
         ],
         capture_output=True,
