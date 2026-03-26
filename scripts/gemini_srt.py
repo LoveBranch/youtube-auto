@@ -88,11 +88,16 @@ SRT format example:
         },
     }
     for attempt in range(3):
-        resp = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}",
-            json=payload,
-            timeout=120,
-        )
+        try:
+            resp = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}",
+                json=payload,
+                timeout=180,
+            )
+        except requests.exceptions.Timeout:
+            print(f"[gemini_srt] 타임아웃 ({attempt+1}/3), 재시도...")
+            _time.sleep(10)
+            continue
         if resp.status_code == 429:
             wait = 30 * (attempt + 1)
             print(f"[gemini_srt] 429 rate limit, {wait}s 후 재시도 ({attempt+1}/3)...")
