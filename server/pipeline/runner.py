@@ -111,7 +111,7 @@ async def run_pipeline(job: Job, req: GenerateRequest):
             if req.style_preset:
                 cmd.extend(["--style-preset", req.style_preset])
             result = await asyncio.to_thread(
-                subprocess.run, cmd, capture_output=True, timeout=600,
+                subprocess.run, cmd, capture_output=True, timeout=1800,
                 env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"},
             )
             stdout_txt = result.stdout.decode("utf-8", errors="replace").strip()
