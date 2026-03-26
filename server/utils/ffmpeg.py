@@ -29,15 +29,13 @@ def composite_final_video(
         concat_file = f.name
 
     try:
-        # 1단계: 씬 영상 합치기
+        # 1단계: 씬 영상 합치기 (스트림 복사 — 재인코딩 없이 메모리 절약)
         concat_path = output_path.with_suffix(".concat.mp4")
         r1 = subprocess.run(
             [
                 "ffmpeg", "-y", "-f", "concat", "-safe", "0",
                 "-i", concat_file,
-                "-c:v", "libx264", "-crf", "23",
-                "-pix_fmt", "yuv420p",
-                "-vf", f"scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2",
+                "-c:v", "copy", "-c:a", "copy",
                 str(concat_path),
             ],
             capture_output=True, timeout=300,
