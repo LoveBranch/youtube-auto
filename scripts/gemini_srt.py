@@ -87,6 +87,7 @@ SRT format example:
             "temperature": 0.1,
         },
     }
+    resp = None
     for attempt in range(3):
         try:
             resp = requests.post(
@@ -105,6 +106,8 @@ SRT format example:
             continue
         resp.raise_for_status()
         break
+    if resp is None:
+        raise RuntimeError("Gemini SRT 생성 3회 타임아웃")
     data = resp.json()
 
     if "candidates" not in data:
