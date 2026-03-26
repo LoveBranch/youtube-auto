@@ -54,17 +54,13 @@ def image_to_clip(image_path: str, output_path: str, duration: float = 4.0, aspe
     frames = int(duration * fps)
 
     # Ken Burns (줌인 효과)
+    # 정적 클립 생성 (zoompan은 메모리를 과도하게 사용해 Railway에서 OOM 발생)
     result = subprocess.run(
         [
             "ffmpeg", "-y",
             "-loop", "1", "-i", image_path,
             "-t", str(duration),
-            "-vf", (
-                f"scale={w * 2}:{h * 2}:force_original_aspect_ratio=increase,"
-                f"crop={w * 2}:{h * 2},"
-                f"zoompan=z='min(zoom+0.0015,1.5)':d={frames}:s={w}x{h}:fps={fps},"
-                f"scale={w}:{h}"
-            ),
+            "-vf", f"scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2",
             "-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p",
             "-r", str(fps),
             output_path,
@@ -74,19 +70,13 @@ def image_to_clip(image_path: str, output_path: str, duration: float = 4.0, aspe
     )
 
     if result.returncode != 0:
-        # Fallback: 정적 클립
-        subprocess.run(
-            [
-                "ffmpeg", "-y",
-                "-loop", "1", "-i", image_path,
-                "-t", str(duration),
-                "-vf", f"scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2",
-                "-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p",
-                "-r", str(fps),
-                output_path,
-            ],
-            capture_output=True,
-            timeout=120,
+        # 실패 시 불완전 파일 삭제 후 예외 발생
+        import os
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        raise RuntimeError(
+            f"image_to_clip 실패 (exit {result.returncode}): "
+            f"{result.stderr.decode(errors='ignore')[-300:]}"
         )
 
     return output_path

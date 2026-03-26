@@ -69,8 +69,13 @@ def generate_cloud_visuals(
         video_file = out / f"scene_{idx:03d}.mp4"
 
         if video_file.exists():
-            print(f"  [스킵] scene_{idx:03d}.mp4 이미 존재")
-            continue
+            # 손상된 파일(50KB 미만)은 삭제 후 재생성
+            if video_file.stat().st_size < 50_000:
+                print(f"  [경고] scene_{idx:03d}.mp4 손상 감지 (크기: {video_file.stat().st_size}B), 재생성")
+                video_file.unlink()
+            else:
+                print(f"  [스킵] scene_{idx:03d}.mp4 이미 존재")
+                continue
 
         # 이미지 생성
         if not image_file.exists():
