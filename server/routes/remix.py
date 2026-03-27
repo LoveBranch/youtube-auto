@@ -3,8 +3,10 @@
 import asyncio
 import tempfile
 from pathlib import Path
+from urllib.parse import urlparse
 
-from fastapi import APIRouter, File, Form, UploadFile
+import requests
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from server.config import settings
@@ -26,6 +28,52 @@ router = APIRouter()
 _analyze_cache: dict[str, dict] = {}
 
 
+def _guess_suffix_from_url(source_url: str) -> str:
+    parsed = urlparse(source_url)
+    suffix = Path(parsed.path).suffix
+    return suffix or ".mp4"
+
+
+def _download_source_video(source_url: str, prefix: str) -> Path:
+    tmp_dir = Path(tempfile.mkdtemp(prefix=prefix))
+    source_path = tmp_dir / f"source{_guess_suffix_from_url(source_url)}"
+
+    with requests.get(source_url, stream=True, timeout=120) as response:
+        response.raise_for_status()
+        with source_path.open("wb") as handle:
+            for chunk in response.iter_content(chunk_size=1024 * 1024):
+                if chunk:
+                    handle.write(chunk)
+
+    return source_path
+
+
+async def _resolve_source_video(
+    *,
+    file: UploadFile | None,
+    source_url: str | None,
+    source_path: str | None,
+    prefix: str,
+) -> Path:
+    if source_path:
+        resolved = Path(source_path)
+        if resolved.exists() and resolved.is_file():
+            return resolved
+        raise HTTPException(status_code=400, detail="source_path could not be resolved")
+
+    if source_url:
+        return await asyncio.to_thread(_download_source_video, source_url, prefix)
+
+    if file is None:
+        raise HTTPException(status_code=400, detail="file or source_url is required")
+
+    suffix = Path(file.filename or "video.mp4").suffix or ".mp4"
+    tmp_dir = Path(tempfile.mkdtemp(prefix=prefix))
+    resolved = tmp_dir / f"source{suffix}"
+    resolved.write_bytes(await file.read())
+    return resolved
+
+
 @router.post("/remix/analyze")
 async def analyze_for_remix(
     total_scenes: int = Form(10),
@@ -33,7 +81,9 @@ async def analyze_for_remix(
     language: str = Form("ko"),
     direction: str = Form(""),
     style: str = Form(""),
-    file: UploadFile = File(...),
+    source_url: str | None = Form(None),
+    source_path: str | None = Form(None),
+    file: UploadFile | None = File(None),
 ):
     """Step 1: 영상을 분석 → 씬 썸네일 + 대본 전사 + AI 재작성 대본 반환.
 
@@ -42,10 +92,13 @@ async def analyze_for_remix(
     3. AI가 비슷한 대본을 재작성 + 씬별 중요도 분석
     4. 사용자에게 재작성 대본 + 씬 프리뷰 반환
     """
-    suffix = Path(file.filename or "video.mp4").suffix or ".mp4"
-    tmp_dir = Path(tempfile.mkdtemp(prefix="remix_analyze_"))
-    source_path = tmp_dir / f"source{suffix}"
-    source_path.write_bytes(await file.read())
+    source_path = await _resolve_source_video(
+        file=file,
+        source_url=source_url,
+        source_path=source_path,
+        prefix="remix_analyze_",
+    )
+    tmp_dir = source_path.parent
 
     try:
         api_key_gemini = settings.get("tts", {}).get("api_key", "")
@@ -147,25 +200,42 @@ async def remix_video(
     generation_tier: str = Form("free"),        # "free" | "premium"
     ai_video_provider: str = Form("hailuo"),    # "hailuo" | "pika"
     max_clip_duration: int = Form(5),           # AI video 최대 길이 (초)
-    file: UploadFile = File(...),
+    premium_clip_count: int = Form(0),
+    selected_scene_indices: str | None = Form(None),
+    source_url: str | None = Form(None),
+    source_path: str | None = Form(None),
+    listing_id: str | None = Form(None),
+    file: UploadFile | None = File(None),
 ):
     """기존 영상을 AI로 분석/재작성하고 선택한 씬을 교체한다.
 
     Free tier: 이미지 → Ken Burns (무료)
     Premium tier: 이미지 → AI video clip ($0.25/clip)
     """
-    suffix = Path(file.filename or "video.mp4").suffix or ".mp4"
+    resolved_source_path = await _resolve_source_video(
+        file=file,
+        source_url=source_url,
+        source_path=source_path,
+        prefix="remix_src_",
+    )
 
     # 업로드 파일을 임시 디렉토리에 저장 (파이프라인이 끝날 때까지 유지)
-    tmp_dir = Path(tempfile.mkdtemp(prefix="remix_src_"))
-    source_path = tmp_dir / f"source{suffix}"
-    source_path.write_bytes(await file.read())
+    parsed_selected_scene_indices: list[int] | None = None
+    if selected_scene_indices:
+        try:
+            parsed_selected_scene_indices = [
+                int(value)
+                for value in selected_scene_indices.strip("[]").split(",")
+                if str(value).strip() != ""
+            ]
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"invalid selected_scene_indices: {exc}") from exc
 
     job = create_job()
     asyncio.create_task(
         run_remix_pipeline(
             job=job,
-            source_video=source_path,
+            source_video=resolved_source_path,
             topic=topic,
             num_scenes_to_replace=num_scenes_to_replace,
             total_scenes=total_scenes,
@@ -174,8 +244,10 @@ async def remix_video(
             style=style,
             image_provider=image_provider,
             generation_tier=generation_tier,
+            premium_clip_count=premium_clip_count,
             ai_video_provider=ai_video_provider,
             max_clip_duration=min(max_clip_duration, 5),
+            selected_scene_indices=parsed_selected_scene_indices,
         )
     )
     return JobResponse(job_id=job.job_id, status=job.status)

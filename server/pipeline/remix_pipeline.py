@@ -215,8 +215,10 @@ async def run_remix_pipeline(
     style: str,
     image_provider: str = "gemini",
     generation_tier: str = "free",
+    premium_clip_count: int = 0,
     ai_video_provider: str = "hailuo",
     max_clip_duration: int = 5,
+    selected_scene_indices: list[int] | None = None,
 ) -> None:
     """리믹스 파이프라인 전체 실행.
 
@@ -283,7 +285,18 @@ async def run_remix_pipeline(
 
         # === Phase 2: 교체할 씬 결정 + 이미지 생성 ===
         # AI 분석 결과가 있으면 중요도 기반, 없으면 기본 균등 분포
-        if remix_analysis and remix_analysis.get("scene_breakdown"):
+        if selected_scene_indices:
+            replace_indices = sorted(
+                {
+                    idx
+                    for idx in selected_scene_indices
+                    if 0 <= idx < total_scenes
+                }
+            )
+            motion_prompts = {}
+            if not replace_indices:
+                replace_indices = select_scenes_to_replace(total_scenes, num_scenes_to_replace)
+        elif remix_analysis and remix_analysis.get("scene_breakdown"):
             breakdown = remix_analysis["scene_breakdown"]
             # 중요도 높은 순으로 정렬해서 교체 대상 선정
             ranked = sorted(
@@ -343,12 +356,21 @@ async def run_remix_pipeline(
             update_phase(job, "ai_video", 0.0)
             from ai_video import generate_ai_video_clip
 
+            ai_target_count = premium_clip_count if premium_clip_count > 0 else len(replace_indices)
+            ai_target_indices = set(replace_indices[:ai_target_count])
             ai_clips_generated = []
             for i, idx in enumerate(replace_indices):
                 update_phase(job, "ai_video", i / len(replace_indices))
 
                 img_path = img_paths.get(idx)
                 if not img_path or not Path(img_path).exists():
+                    continue
+
+                clip_path = str(output_dir / f"new_{idx:03d}.mp4")
+                orig_dur = await asyncio.to_thread(get_video_duration, scenes[idx])
+                if idx not in ai_target_indices:
+                    await asyncio.to_thread(image_to_clip, img_path, clip_path, orig_dur, aspect_ratio)
+                    scenes[idx] = Path(clip_path)
                     continue
 
                 ai_clip_path = str(output_dir / f"new_{idx:03d}_ai.mp4")
@@ -368,8 +390,6 @@ async def run_remix_pipeline(
                 except Exception as exc:
                     print(f"[remix ai_video] Scene {idx} failed, falling back to Ken Burns: {exc}")
                     # 폴백: Ken Burns
-                    clip_path = str(output_dir / f"new_{idx:03d}.mp4")
-                    orig_dur = await asyncio.to_thread(get_video_duration, scenes[idx])
                     await asyncio.to_thread(image_to_clip, img_path, clip_path, orig_dur, aspect_ratio)
                     scenes[idx] = Path(clip_path)
 
