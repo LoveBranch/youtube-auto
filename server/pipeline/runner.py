@@ -238,7 +238,7 @@ async def run_pipeline(job: Job, req: GenerateRequest):
             capcut_dir = settings.get("capcut", {}).get("project_dir", "") or str(project_dir / "capcut_export")
             cmd = [
                 sys.executable, str(BASE_DIR / "scripts" / "capcut_project.py"),
-                str(audio_path), str(srt_path), req.topic,
+                str(audio_path), str(srt_path), project_name,
                 "--aspect-ratio", req.aspect_ratio,
                 "--scenes-dir", str(visuals_dir),
                 "--capcut-dir", capcut_dir,

@@ -84,9 +84,10 @@ def image_to_clip(image_path: str, output_path: str, duration: float = 4.0, aspe
     result = subprocess.run(
         [
             "ffmpeg", "-y",
+            "-threads", "1",
             "-loop", "1", "-i", image_path,
             "-vf", vf,
-            "-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p",
             "-t", str(duration),
             output_path,
         ],
