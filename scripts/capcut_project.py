@@ -998,11 +998,12 @@ def main() -> None:
         if os.path.exists(scenes_json):
             with open(scenes_json, "r", encoding="utf-8") as f:
                 scenes_data = json.load(f)
+            elapsed_us = 0
             for scene in scenes_data:
                 video_file = os.path.join(args.scenes_dir, scene.get("video_file", ""))
                 image_file = os.path.join(args.scenes_dir, scene.get("image_file", ""))
-                start_us = int(scene["start_time"] * 1_000_000)
-                duration_us = int(scene["duration"] * 1_000_000)
+                start_us = int(scene.get("start_time", elapsed_us / 1_000_000) * 1_000_000)
+                duration_us = int(scene.get("duration", 4.0) * 1_000_000)
 
                 if os.path.exists(video_file):
                     # 영상 파일이 있으면 영상 사용
@@ -1016,6 +1017,7 @@ def main() -> None:
                         "duration_us": duration_us,
                     })
                     print(f"  씬 영상 추가: {os.path.basename(video_file)}")
+                    elapsed_us = start_us + duration_us
                 elif os.path.exists(image_file):
                     # 이미지만 있으면 Ken Burns 효과 적용
                     dest = os.path.join(resources_dir, os.path.basename(image_file))
@@ -1029,6 +1031,7 @@ def main() -> None:
                         "scene_index": scene.get("index", 0),
                     })
                     print(f"  씬 이미지 추가 (Ken Burns): {os.path.basename(image_file)}")
+                    elapsed_us = start_us + duration_us
             print(f"  총 {len(scene_assets)}개 씬 로드 (영상 {len([s for s in scene_assets if s['type'] == 'video'])}개 + 이미지 {len([s for s in scene_assets if s['type'] == 'image'])}개)")
 
     # draft_content.json 생성

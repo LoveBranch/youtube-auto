@@ -155,7 +155,14 @@ def generate_cloud_visuals(
                 print(f"  {r}", file=sys.stderr)
                 errors.append(r)
 
-    # scenes.json 저장
+    # scenes.json에 start_time 추가 (capcut_project.py에서 필요)
+    elapsed = 0.0
+    for s in scenes:
+        s["start_time"] = round(elapsed, 3)
+        dur = s.get("duration", 4.0)
+        s["duration"] = dur
+        elapsed += dur
+
     (out / "scenes.json").write_text(
         json.dumps(scenes, ensure_ascii=False, indent=2), encoding="utf-8"
     )
