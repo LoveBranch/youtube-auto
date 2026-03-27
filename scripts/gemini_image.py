@@ -26,7 +26,7 @@ def generate_image_gemini(prompt: str, api_key: str, output_path: str) -> str:
     for attempt in range(3):
         try:
             resp = requests.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-fast-generate-001:predict?key={api_key}",
+                f"https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key={api_key}",
                 json={
                     "instances": [{"prompt": prompt}],
                     "parameters": {"sampleCount": 1},
