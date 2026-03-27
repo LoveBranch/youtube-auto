@@ -75,7 +75,9 @@ def generate_cloud_visuals(
         per_scene = total_audio_dur / len(scenes)
         for s in scenes:
             s["duration"] = round(per_scene, 2)
-        print(f"오디오 {total_audio_dur:.1f}s → 씬당 {per_scene:.1f}s")
+        # 마지막 씬에 여유 2초 추가 → 비디오가 오디오보다 항상 길게
+        scenes[-1]["duration"] = round(per_scene + 2.0, 2)
+        print(f"오디오 {total_audio_dur:.1f}s → 씬당 {per_scene:.1f}s (마지막 +2s)")
     else:
         print("SRT 기반 duration 계산 실패, 기본 4초 사용")
 

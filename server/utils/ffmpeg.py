@@ -58,7 +58,7 @@ def composite_final_video(
                 ),
                 "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
                 "-c:a", "aac", "-b:a", "128k",
-                "-shortest",
+                "-map", "0:v:0", "-map", "1:a:0",
                 "-pix_fmt", "yuv420p",
                 str(output_path),
             ],
