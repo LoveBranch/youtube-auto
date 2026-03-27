@@ -19,6 +19,11 @@ class GenerateRequest(BaseModel):
     style_preset: str | None = None     # 사용자 선택 스타일 프리셋 (예: "cinematic_realism", "anime_manhwa")
     channel_style_profile: dict | None = None  # Channel Factory: 채널 스타일 프로필
     thumbnail_template: dict | None = None     # Channel Factory: 썸네일 템플릿
+    # Premium tier: AI video clips
+    generation_tier: str = "free"       # "free" (Ken Burns만) | "premium" (AI video clips)
+    premium_clip_count: int = 0         # AI video로 교체할 씬 수
+    max_clip_duration: int = 5          # AI video 클립 최대 길이 (초)
+    ai_video_provider: str = "hailuo"   # "hailuo" (MiniMax) | "pika"
 
 
 class ScriptRequest(BaseModel):

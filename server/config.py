@@ -31,6 +31,14 @@ def load_settings() -> dict:
     if youtube_key:
         data.setdefault("youtube", {})["api_key"] = youtube_key
 
+    hailuo_key = os.environ.get("HAILUO_API_KEY", "")
+    if hailuo_key:
+        data.setdefault("hailuo", {})["api_key"] = hailuo_key
+
+    pika_key = os.environ.get("PIKA_API_KEY", "")
+    if pika_key:
+        data.setdefault("pika", {})["api_key"] = pika_key
+
     return data
 
 

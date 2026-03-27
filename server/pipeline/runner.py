@@ -126,6 +126,73 @@ async def run_pipeline(job: Job, req: GenerateRequest):
         if scene_count == 0:
             raise RuntimeError(f"Visual generation produced no scene clips in: {visuals_dir}")
         complete_phase(job, "visuals")
+        _check_cancelled(job)
+
+        # === Phase 4.5: Premium AI Video Clips (유료 티어) ===
+        if req.generation_tier == "premium" and req.premium_clip_count > 0:
+            update_phase(job, "ai_video", 0.0)
+
+            import json as _json
+            from server.pipeline.scene_analyzer import analyze_scene_importance
+            from ai_video import generate_ai_video_clip
+
+            gemini_key = settings.get("tts", {}).get("api_key", "")
+            script_text = script_path.read_text(encoding="utf-8")
+
+            # scenes.json 로드
+            scenes_json_path = visuals_dir / "scenes.json"
+            scenes_data = []
+            if scenes_json_path.exists():
+                scenes_data = _json.loads(scenes_json_path.read_text(encoding="utf-8"))
+
+            # Gemini로 어떤 씬에 AI video를 적용할지 분석
+            selected_scenes = await asyncio.to_thread(
+                analyze_scene_importance,
+                script_text, scenes_data,
+                req.premium_clip_count, req.max_clip_duration,
+                req.language, gemini_key,
+            )
+
+            # 선택된 씬마다 AI video 클립 생성 (이미지 → 동영상)
+            ai_clips_generated = []
+            for i, scene_info in enumerate(selected_scenes):
+                _check_cancelled(job)
+                update_phase(job, "ai_video", i / len(selected_scenes))
+
+                idx = scene_info["scene_index"]
+                img_path = visuals_dir / f"scene_{idx:03d}.jpg"
+                if not img_path.exists():
+                    img_path = visuals_dir / f"scene_{idx:03d}.png"
+                if not img_path.exists():
+                    continue
+
+                ai_clip_path = visuals_dir / f"scene_{idx:03d}_ai.mp4"
+                motion_prompt = scene_info.get("motion_prompt", "cinematic slow motion")
+                clip_dur = scene_info.get("clip_duration", 4)
+
+                try:
+                    await asyncio.to_thread(
+                        generate_ai_video_clip,
+                        str(img_path), motion_prompt, str(ai_clip_path),
+                        provider=req.ai_video_provider,
+                        duration=clip_dur,
+                        settings=settings,
+                    )
+                    # 성공하면 기존 Ken Burns 클립을 AI 클립으로 교체
+                    original_clip = visuals_dir / f"scene_{idx:03d}.mp4"
+                    backup = visuals_dir / f"scene_{idx:03d}_kenburns.mp4"
+                    if original_clip.exists():
+                        original_clip.rename(backup)
+                    ai_clip_path.rename(original_clip)
+                    ai_clips_generated.append(idx)
+                except Exception as exc:
+                    print(f"[ai_video] Scene {idx} AI video failed, keeping Ken Burns: {exc}")
+
+            job.outputs["ai_clips_generated"] = ai_clips_generated
+            job.outputs["ai_clips_requested"] = req.premium_clip_count
+            job.outputs["generation_tier"] = "premium"
+            complete_phase(job, "ai_video")
+            _check_cancelled(job)
 
         # === Phase 5: 최종 MP4 합성 ===
         outputs = {

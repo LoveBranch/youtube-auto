@@ -14,8 +14,8 @@ def composite_final_video(
 ) -> Path:
     """씬 영상들 + 오디오 + 자막을 하나의 MP4로 합성한다."""
 
-    resolutions = {"16:9": (1920, 1080), "9:16": (1080, 1920), "1:1": (1080, 1080)}
-    w, h = resolutions.get(aspect_ratio, (1920, 1080))
+    resolutions = {"16:9": (1280, 720), "9:16": (720, 1280), "1:1": (720, 720)}
+    w, h = resolutions.get(aspect_ratio, (1280, 720))
 
     # 씬 영상 목록 수집 (정렬)
     scene_videos = sorted(scenes_dir.glob("scene_*.mp4"))
@@ -43,21 +43,26 @@ def composite_final_video(
         if r1.returncode != 0:
             raise RuntimeError(f"ffmpeg concat 실패 (exit {r1.returncode}): {r1.stderr.decode(errors='ignore')[-500:]}")
 
-        # 2단계: 오디오 + 자막 합성
+        # 2단계: 오디오 + 자막 합성 (720p + 저메모리 설정으로 OOM 방지)
         srt_path_posix = srt_path.as_posix()
         r2 = subprocess.run(
             [
                 "ffmpeg", "-y",
+                "-threads", "1",
                 "-i", str(concat_path),
                 "-i", str(audio_path),
-                "-vf", f"subtitles='{srt_path_posix}':force_style='FontSize=22,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2,Alignment=2'",
-                "-c:v", "libx264", "-crf", "23",
+                "-vf", (
+                    f"scale={w}:{h}:force_original_aspect_ratio=decrease,"
+                    f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,"
+                    f"subtitles='{srt_path_posix}':force_style='FontSize=18,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2,Alignment=2'"
+                ),
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
                 "-c:a", "aac", "-b:a", "128k",
                 "-shortest",
                 "-pix_fmt", "yuv420p",
                 str(output_path),
             ],
-            capture_output=True, timeout=300,
+            capture_output=True, timeout=600,
         )
         if r2.returncode != 0:
             raise RuntimeError(f"ffmpeg 합성 실패 (exit {r2.returncode}): {r2.stderr.decode(errors='ignore')[-500:]}")
@@ -75,13 +80,15 @@ def generate_preview(input_path: Path, output_path: Path, max_height: int = 480)
     """저해상도 미리보기 영상을 생성한다."""
     r = subprocess.run(
         [
-            "ffmpeg", "-y", "-i", str(input_path),
+            "ffmpeg", "-y",
+            "-threads", "1",
+            "-i", str(input_path),
             "-vf", f"scale=-2:{max_height}",
-            "-c:v", "libx264", "-crf", "30",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "30",
             "-c:a", "aac", "-b:a", "64k",
             str(output_path),
         ],
-        capture_output=True, timeout=300,
+        capture_output=True, timeout=600,
     )
     if r.returncode != 0:
         raise RuntimeError(f"ffmpeg preview 실패 (exit {r.returncode}): {r.stderr.decode(errors='ignore')[-300:]}")

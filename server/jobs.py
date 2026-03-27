@@ -22,12 +22,20 @@ _jobs: dict[str, Job] = {}
 
 # 파이프라인 단계별 가중치 (전체 진행률 계산용)
 PHASE_WEIGHTS = {
+    # Generate pipeline
     "script": 0.05,
     "tts": 0.10,
     "whisper": 0.10,
-    "visuals": 0.45,
-    "compositing": 0.20,
+    "visuals": 0.35,
+    "ai_video": 0.15,   # Premium tier: AI video clip generation
+    "compositing": 0.15,
     "capcut": 0.10,
+    # Remix pipeline
+    "analyze": 0.15,
+    "split": 0.10,
+    "generate": 0.30,
+    # ai_video: 0.15 (shared)
+    # compositing: 0.15 (shared)
 }
 
 
