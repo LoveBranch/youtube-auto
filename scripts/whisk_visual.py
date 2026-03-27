@@ -425,10 +425,16 @@ Script language hint: {lang}"""
         data = resp.json()
         text = data["candidates"][0]["content"]["parts"][0]["text"]
         prompts = json.loads(text)
-        if isinstance(prompts, list) and len(prompts) == len(scenes):
+        if isinstance(prompts, list) and len(prompts) >= len(scenes):
             print(f"  Gemini 프롬프트 생성 완료: {len(prompts)}개")
+            return prompts[:len(scenes)]
+        if isinstance(prompts, list) and len(prompts) > 0:
+            # 부족한 만큼 마지막 프롬프트를 재사용
+            print(f"  경고: 프롬프트 수 불일치 (기대 {len(scenes)}, 받음 {len(prompts)}), 패딩 적용")
+            while len(prompts) < len(scenes):
+                prompts.append(prompts[-1])
             return prompts
-        print(f"  경고: 프롬프트 수 불일치 (기대 {len(scenes)}, 받음 {len(prompts)})", file=sys.stderr)
+        print(f"  경고: 프롬프트 파싱 실패 (빈 목록 또는 잘못된 형식)", file=sys.stderr)
     except Exception as e:
         print(f"  Gemini 프롬프트 생성 실패: {e}", file=sys.stderr)
 

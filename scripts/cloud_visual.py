@@ -26,6 +26,17 @@ from grok_visual import image_to_clip, load_settings
 SETTINGS = load_settings()
 
 
+def _get_srt_duration(srt_text: str) -> float:
+    """SRT 파일에서 마지막 자막의 종료 시간(초)을 반환한다."""
+    import re
+    last_end = 0.0
+    for m in re.finditer(r'(\d{2}):(\d{2}):(\d{2})[,.](\d{3})', srt_text):
+        t = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3)) + int(m.group(4)) / 1000
+        if t > last_end:
+            last_end = t
+    return last_end
+
+
 def generate_cloud_visuals(
     script_path: str,
     srt_path: str,
@@ -56,6 +67,17 @@ def generate_cloud_visuals(
     # 1) 씬 추출
     scenes = extract_sections(script_text)
     print(f"씬 {len(scenes)}개 추출됨")
+
+    # 1.5) SRT에서 오디오 총 길이 → 씬별 duration 균등 분배
+    srt_text = Path(srt_path).read_text(encoding="utf-8")
+    total_audio_dur = _get_srt_duration(srt_text)
+    if total_audio_dur > 0 and scenes:
+        per_scene = total_audio_dur / len(scenes)
+        for s in scenes:
+            s["duration"] = round(per_scene, 2)
+        print(f"오디오 {total_audio_dur:.1f}s → 씬당 {per_scene:.1f}s")
+    else:
+        print("SRT 기반 duration 계산 실패, 기본 4초 사용")
 
     # 2) 이미지 프롬프트 생성 (Gemini)
     scenes = generate_image_prompts(scenes, lang, aspect_ratio, api_key_gemini, style_preset=style_preset)
