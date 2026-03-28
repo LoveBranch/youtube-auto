@@ -70,7 +70,7 @@ async def render_make_from_clips(
     language: str = Form("ko"),
     aspect_ratio: str = Form("9:16"),
     subtitle_format: str = Form("vtt+srt"),
-    primary_motion: str = Form("slowdown"),
+    primary_motion: str = Form("none"),
 ):
     if subtitle_format not in SUPPORTED_SUBTITLE_FORMATS:
         raise HTTPException(status_code=400, detail="unsupported subtitle format")
@@ -98,22 +98,14 @@ async def render_make_from_clips(
 
     clip_assets: list[ClipAsset] = []
     for upload, meta in zip(clips, clip_meta, strict=False):
-        category = str(meta.get("category", "main"))
         upload_name = str(meta.get("name") or upload.filename or f"clip_{len(clip_assets) + 1}")
-        tags = [
-            str(tag).strip()
-            for tag in meta.get("tags", [])
-            if str(tag).strip()
-        ] if isinstance(meta.get("tags"), list) else []
-        note = str(meta.get("note") or "").strip()
+        clip_number = max(1, int(meta.get("clipNumber") or len(clip_assets) + 1))
         clip_path = _save_upload(upload, tmp_dir, f"{len(clip_assets) + 1:03d}_{Path(upload_name).name}")
         clip_assets.append(
             ClipAsset(
                 name=upload_name,
                 path=clip_path,
-                category=category,
-                tags=tags,
-                note=note,
+                clip_number=clip_number,
             )
         )
 

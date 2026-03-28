@@ -25,16 +25,25 @@ FPS = 30
 MAX_DURATION_SEC = 180
 SUPPORTED_SUBTITLE_FORMATS = {"vtt", "vtt+srt"}
 VISUAL_MOTION_EFFECTS = [
-    "zoom_in",
-    "zoom_out",
-    "pan_left",
-    "pan_right",
-    "tilt_up",
-    "tilt_down",
-    "drift",
-    "push_in",
-    "push_out",
+    "none",
+    "zoom_in_slow",
+    "zoom_out_slow",
+    "pan_lr",
+    "pan_rl",
+    "freeze_tail",
+    "crop_center",
+    "crop_left",
+    "crop_right",
+    "flip_horizontal",
+    "brightness_up",
+    "brightness_down",
 ]
+WEIGHTED_SEGMENT_PRESETS = (
+    ["none"] * 3
+    + ["zoom_in_slow", "zoom_out_slow", "pan_lr", "pan_rl"] * 2
+    + ["crop_center", "crop_left", "crop_right", "brightness_up", "brightness_down"]
+    + ["freeze_tail", "flip_horizontal"]
+)
 
 
 @dataclass
@@ -49,18 +58,36 @@ class SubtitleSegment:
 class ClipAsset:
     name: str
     path: Path
-    category: str
-    tags: list[str]
-    note: str = ""
+    clip_number: int
 
 
-def split_script_into_sentences(script: str) -> list[str]:
-    return [
-        sentence.strip()
-        for block in re.split(r"\n+", script)
-        for sentence in re.split(r"(?<=[.!?])\s+", block)
-        if sentence.strip()
-    ]
+def parse_number_mapped_script(script: str) -> list[dict]:
+    parsed: list[dict] = []
+    for index, raw_line in enumerate(re.split(r"\n+", script)):
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        match = re.match(r"^(\d+)\s*[|:-]\s*(.+)$", line)
+        if match:
+            parsed.append(
+                {
+                    "index": len(parsed),
+                    "clipNumber": max(1, int(match.group(1))),
+                    "text": match.group(2).strip(),
+                }
+            )
+            continue
+
+        parsed.append(
+            {
+                "index": len(parsed),
+                "clipNumber": len(parsed) + 1,
+                "text": line,
+            }
+        )
+
+    return parsed
 
 
 def normalize_text(text: str) -> str:
@@ -130,34 +157,25 @@ def parse_srt_content(srt_text: str) -> list[SubtitleSegment]:
     return segments
 
 
-def infer_sentence_category(index: int, total: int) -> str:
-    if index == 0:
-        return "intro"
-    if index == total - 1:
-        return "outro"
-    return "main"
-
-
 def align_script_to_segments(script: str, subtitle_segments: list[SubtitleSegment]) -> list[dict]:
-    script_sentences = split_script_into_sentences(script)
-    if not script_sentences:
+    script_lines = parse_number_mapped_script(script)
+    if not script_lines:
         return []
     if not subtitle_segments:
-        total = len(script_sentences)
         return [
             {
                 "slotId": f"slot_{index + 1:02d}",
                 "sentenceIndex": index,
-                "category": infer_sentence_category(index, total),
-                "text": sentence,
+                "clipNumber": int(line["clipNumber"]),
+                "text": str(line["text"]),
                 "startSec": float(index),
                 "endSec": float(index + 1),
                 "durationSec": 1.0,
             }
-            for index, sentence in enumerate(script_sentences)
+            for index, line in enumerate(script_lines)
         ]
 
-    sentence_weights = [max(1, len(normalize_text(sentence).replace(" ", ""))) for sentence in script_sentences]
+    sentence_weights = [max(1, len(normalize_text(str(line["text"])).replace(" ", ""))) for line in script_lines]
     total_sentence_weight = sum(sentence_weights)
 
     subtitle_weights = [max(1, len(normalize_text(segment.text).replace(" ", ""))) for segment in subtitle_segments]
@@ -172,7 +190,7 @@ def align_script_to_segments(script: str, subtitle_segments: list[SubtitleSegmen
     cursor = 0
     consumed_weight = 0
 
-    for sentence_index, sentence in enumerate(script_sentences):
+    for sentence_index, line in enumerate(script_lines):
         consumed_weight += sentence_weights[sentence_index]
         target_weight = total_subtitle_weight * (consumed_weight / total_sentence_weight)
         start_idx = cursor
@@ -181,13 +199,12 @@ def align_script_to_segments(script: str, subtitle_segments: list[SubtitleSegmen
         end_idx = max(start_idx, cursor)
         start_segment = subtitle_segments[start_idx]
         end_segment = subtitle_segments[end_idx]
-        total = len(script_sentences)
         aligned.append(
             {
                 "slotId": f"slot_{sentence_index + 1:02d}",
                 "sentenceIndex": sentence_index,
-                "category": infer_sentence_category(sentence_index, total),
-                "text": sentence,
+                "clipNumber": int(line["clipNumber"]),
+                "text": str(line["text"]),
                 "startSec": round(start_segment.start_sec, 3),
                 "endSec": round(end_segment.end_sec, 3),
                 "durationSec": round(max(0.2, end_segment.end_sec - start_segment.start_sec), 3),
@@ -258,51 +275,31 @@ def get_aspect_resolution(aspect_ratio: str) -> tuple[int, int]:
     }.get(aspect_ratio, (1280, 720))
 
 
-def score_clip_for_segment(segment: dict, clip: ClipAsset, recent_names: list[str]) -> float:
-    sentence_text = str(segment.get("text", ""))
-    normalized_sentence = normalize_text(sentence_text)
-    sentence_keywords = set(extract_keywords(sentence_text))
-    score = 0.0
-
-    if clip.category == str(segment.get("category", "main")):
-        score += 100.0
-
-    for tag in clip.tags:
-        normalized_tag = normalize_text(tag)
-        if not normalized_tag:
-            continue
-        tag_tokens = set(extract_keywords(normalized_tag))
-        if normalized_tag in normalized_sentence:
-            score += 40.0
-        overlap = len(sentence_keywords & tag_tokens)
-        score += overlap * 18.0
-
-    if clip.note:
-        normalized_note = normalize_text(clip.note)
-        if normalized_note and normalized_note in normalized_sentence:
-            score += 12.0
-
-    if clip.name in recent_names:
-        score -= 18.0
-
-    score += random.uniform(0.0, 4.0)
-    return score
-
-
 def pick_clip_for_segment(segment: dict, clip_assets: list[ClipAsset], recent_names: list[str]) -> ClipAsset:
-    category = str(segment.get("category", "main"))
-    exact_pool = [clip for clip in clip_assets if clip.category == category]
-    pool = exact_pool or clip_assets
-    ranked = sorted(
-        ((score_clip_for_segment(segment, clip, recent_names), clip) for clip in pool),
-        key=lambda item: item[0],
-        reverse=True,
-    )
-    top_slice = ranked[: min(3, len(ranked))]
-    if not top_slice:
-        return random.choice(clip_assets)
-    weighted_pool = [clip for score, clip in top_slice for _ in range(max(1, int(score // 10) or 1))]
-    return random.choice(weighted_pool or [top_slice[0][1]])
+    preferred_number = int(segment.get("clipNumber") or 0)
+    if preferred_number > 0:
+        exact_match = next((clip for clip in clip_assets if clip.clip_number == preferred_number), None)
+        if exact_match:
+            return exact_match
+
+    ordered = sorted(clip_assets, key=lambda clip: clip.clip_number)
+    if not ordered:
+        raise RuntimeError("No clip assets available for Make from Clips render.")
+
+    fallback_index = min(int(segment.get("sentenceIndex", 0)), len(ordered) - 1)
+    if ordered[fallback_index].name not in recent_names:
+        return ordered[fallback_index]
+
+    for clip in ordered:
+        if clip.name not in recent_names:
+            return clip
+
+    return ordered[fallback_index]
+
+
+def choose_segment_effect(rng: random.Random, previous_effect: str | None) -> str:
+    pool = [preset for preset in WEIGHTED_SEGMENT_PRESETS if preset != previous_effect]
+    return rng.choice(pool or list(WEIGHTED_SEGMENT_PRESETS))
 
 
 def get_motion_crop_filter(effect_id: str, width: int, height: int, duration_sec: float) -> str:
@@ -315,42 +312,35 @@ def get_motion_crop_filter(effect_id: str, width: int, height: int, duration_sec
         f"h='if(gte(iw/ih,{ratio}),{padded_h},-2)'"
     )
 
-    if effect_id in {"zoom_in", "push_in"}:
+    if effect_id == "zoom_in_slow":
         crop = (
-            f"crop=w='max({width},iw*(1-0.08*min(1,t/{safe_duration})))':"
-            f"h='max({height},ih*(1-0.08*min(1,t/{safe_duration})))':"
+            f"crop=w='max({width},iw*(1-0.06*min(1,t/{safe_duration})))':"
+            f"h='max({height},ih*(1-0.06*min(1,t/{safe_duration})))':"
             f"x='(in_w-out_w)/2':y='(in_h-out_h)/2',"
             f"scale={width}:{height}"
         )
         return f"{base_scale},{crop}"
 
-    if effect_id in {"zoom_out", "push_out"}:
+    if effect_id == "zoom_out_slow":
         crop = (
-            f"crop=w='max({width},iw*(0.92+0.08*min(1,t/{safe_duration})))':"
-            f"h='max({height},ih*(0.92+0.08*min(1,t/{safe_duration})))':"
+            f"crop=w='max({width},iw*(0.94+0.06*min(1,t/{safe_duration})))':"
+            f"h='max({height},ih*(0.94+0.06*min(1,t/{safe_duration})))':"
             f"x='(in_w-out_w)/2':y='(in_h-out_h)/2',"
             f"scale={width}:{height}"
         )
         return f"{base_scale},{crop}"
 
-    if effect_id == "pan_left":
-        return f"{base_scale},crop={width}:{height}:x='(in_w-out_w)*(1-min(1,t/{safe_duration}))':y='(in_h-out_h)/2'"
-
-    if effect_id == "pan_right":
+    if effect_id == "pan_lr":
         return f"{base_scale},crop={width}:{height}:x='(in_w-out_w)*min(1,t/{safe_duration})':y='(in_h-out_h)/2'"
 
-    if effect_id == "tilt_up":
-        return f"{base_scale},crop={width}:{height}:x='(in_w-out_w)/2':y='(in_h-out_h)*(1-min(1,t/{safe_duration}))'"
+    if effect_id == "pan_rl":
+        return f"{base_scale},crop={width}:{height}:x='(in_w-out_w)*(1-min(1,t/{safe_duration}))':y='(in_h-out_h)/2'"
 
-    if effect_id == "tilt_down":
-        return f"{base_scale},crop={width}:{height}:x='(in_w-out_w)/2':y='(in_h-out_h)*min(1,t/{safe_duration})'"
+    if effect_id == "crop_left":
+        return f"{base_scale},crop={width}:{height}:x='0':y='(in_h-out_h)/2'"
 
-    if effect_id == "drift":
-        return (
-            f"{base_scale},crop={width}:{height}:"
-            f"x='(in_w-out_w)/2 + (in_w-out_w)*0.12*sin(2*PI*t/{safe_duration})':"
-            f"y='(in_h-out_h)/2 + (in_h-out_h)*0.08*cos(2*PI*t/{safe_duration})'"
-        )
+    if effect_id == "crop_right":
+        return f"{base_scale},crop={width}:{height}:x='in_w-out_w':y='(in_h-out_h)/2'"
 
     return f"{base_scale},crop={width}:{height}:x='(in_w-out_w)/2':y='(in_h-out_h)/2'"
 
@@ -366,41 +356,40 @@ def render_clip_slot(
     width, height = get_aspect_resolution(aspect_ratio)
     source_duration = max(0.1, get_video_duration(clip_path))
     safe_target = max(target_duration_sec, 0.2)
-    duration_ratio = source_duration / safe_target
     effective_motion = motion_effect
-    speed = 1.0
     hold_duration = 0.0
+    segment_fill_ratio = source_duration / safe_target
 
-    # When the clip already fits the slot, vary the treatment so exports do not
-    # feel mechanically identical across different users.
-    if 0.9 <= duration_ratio <= 1.1:
-        strategy = random.choice(["trim", "slowdown", "freeze_tail", "motion"])
-        if strategy == "slowdown":
-            speed = random.uniform(0.88, 0.97)
-        elif strategy == "freeze_tail":
-            speed = random.uniform(0.97, 1.01)
-            hold_duration = random.uniform(0.18, 0.55)
-        elif strategy == "motion":
-            effective_motion = random.choice(VISUAL_MOTION_EFFECTS)
-            speed = random.uniform(0.96, 1.02)
-        else:
-            speed = random.uniform(0.98, 1.03)
-    elif source_duration < safe_target:
-        slowdown_factor = max(0.8, source_duration / safe_target)
-        speed = min(random.uniform(0.9, 0.98), slowdown_factor)
-    else:
-        speed = random.uniform(0.96, 1.04)
+    if segment_fill_ratio < 1:
+        hold_duration = max(0.0, safe_target - source_duration)
+        if effective_motion not in {"freeze_tail", "none"}:
+            hold_duration = max(hold_duration, random.uniform(0.3, 0.6))
 
-    post_speed_duration = source_duration / speed
-    hold_duration = max(hold_duration, target_duration_sec - post_speed_duration)
-    motion_filter = get_motion_crop_filter(effective_motion, width, height, target_duration_sec)
-    filter_chain = (
-        f"{motion_filter},"
-        f"setpts=PTS/{speed},"
-        f"tpad=stop_mode=clone:stop_duration={hold_duration:.3f},"
-        f"trim=duration={target_duration_sec:.3f},"
-        f"fps={FPS},format=yuv420p"
-    )
+    clip_trim_duration = min(source_duration, max(0.1, safe_target - hold_duration))
+    hold_duration = max(0.0, safe_target - clip_trim_duration)
+    motion_filter = get_motion_crop_filter(effective_motion, width, height, max(clip_trim_duration, safe_target))
+
+    extra_filters: list[str] = []
+    if effective_motion == "flip_horizontal":
+        extra_filters.append("hflip")
+    elif effective_motion == "brightness_up":
+        extra_filters.append("eq=brightness=0.06")
+    elif effective_motion == "brightness_down":
+        extra_filters.append("eq=brightness=-0.06")
+
+    filter_parts = [
+        motion_filter,
+        f"trim=duration={clip_trim_duration:.3f}",
+        *extra_filters,
+    ]
+    if hold_duration > 0:
+        filter_parts.append(f"tpad=stop_mode=clone:stop_duration={hold_duration:.3f}")
+    filter_parts.extend([
+        f"trim=duration={safe_target:.3f}",
+        f"fps={FPS}",
+        "format=yuv420p",
+    ])
+    filter_chain = ",".join(filter_parts)
 
     result = subprocess.run(
         [
@@ -545,6 +534,8 @@ async def run_make_from_clips_pipeline(
         update_phase(job, "slot_render", 0.0)
         slot_paths: list[Path] = []
         recent_names: list[str] = []
+        effect_rng = random.Random(f"make-from-clips:{job.job_id}")
+        previous_effect: str | None = None
 
         for index, segment in enumerate(aligned_segments):
             update_phase(job, "slot_render", index / max(len(aligned_segments), 1))
@@ -552,6 +543,8 @@ async def run_make_from_clips_pipeline(
             recent_names.append(clip.name)
             if len(recent_names) > 4:
                 recent_names.pop(0)
+            slot_motion = primary_motion if primary_motion != "none" else choose_segment_effect(effect_rng, previous_effect)
+            previous_effect = slot_motion
             slot_output = output_dir / f"slot_{index + 1:03d}.mp4"
             await asyncio.to_thread(
                 render_clip_slot,
@@ -559,7 +552,7 @@ async def run_make_from_clips_pipeline(
                 slot_output,
                 target_duration_sec=float(segment["durationSec"]),
                 aspect_ratio=aspect_ratio,
-                motion_effect=primary_motion,
+                motion_effect=slot_motion,
             )
             slot_paths.append(slot_output)
 
