@@ -50,6 +50,8 @@ class ClipAsset:
     name: str
     path: Path
     category: str
+    tags: list[str]
+    note: str = ""
 
 
 def split_script_into_sentences(script: str) -> list[str]:
@@ -66,6 +68,20 @@ def normalize_text(text: str) -> str:
     lowered = re.sub(r"[^\w\s가-힣]", " ", lowered)
     lowered = re.sub(r"\s+", " ", lowered)
     return lowered.strip()
+
+
+def extract_keywords(text: str) -> list[str]:
+    stopwords = {
+        "the", "and", "for", "with", "this", "that", "from", "into", "your",
+        "you", "are", "was", "were", "have", "has", "had", "but", "not",
+        "then", "than", "just", "over", "under", "after", "before", "into",
+        "onto", "about", "their", "there", "here", "will", "would", "should",
+    }
+    normalized = normalize_text(text)
+    if not normalized:
+        return []
+    tokens = [token for token in normalized.split(" ") if len(token) > 1 and token not in stopwords]
+    return list(dict.fromkeys(tokens))
 
 
 def parse_srt_timestamp(value: str) -> float:
@@ -242,13 +258,51 @@ def get_aspect_resolution(aspect_ratio: str) -> tuple[int, int]:
     }.get(aspect_ratio, (1280, 720))
 
 
+def score_clip_for_segment(segment: dict, clip: ClipAsset, recent_names: list[str]) -> float:
+    sentence_text = str(segment.get("text", ""))
+    normalized_sentence = normalize_text(sentence_text)
+    sentence_keywords = set(extract_keywords(sentence_text))
+    score = 0.0
+
+    if clip.category == str(segment.get("category", "main")):
+        score += 100.0
+
+    for tag in clip.tags:
+        normalized_tag = normalize_text(tag)
+        if not normalized_tag:
+            continue
+        tag_tokens = set(extract_keywords(normalized_tag))
+        if normalized_tag in normalized_sentence:
+            score += 40.0
+        overlap = len(sentence_keywords & tag_tokens)
+        score += overlap * 18.0
+
+    if clip.note:
+        normalized_note = normalize_text(clip.note)
+        if normalized_note and normalized_note in normalized_sentence:
+            score += 12.0
+
+    if clip.name in recent_names:
+        score -= 18.0
+
+    score += random.uniform(0.0, 4.0)
+    return score
+
+
 def pick_clip_for_segment(segment: dict, clip_assets: list[ClipAsset], recent_names: list[str]) -> ClipAsset:
     category = str(segment.get("category", "main"))
     exact_pool = [clip for clip in clip_assets if clip.category == category]
     pool = exact_pool or clip_assets
-    preferred = [clip for clip in pool if clip.name not in recent_names]
-    final_pool = preferred or pool
-    return random.choice(final_pool)
+    ranked = sorted(
+        ((score_clip_for_segment(segment, clip, recent_names), clip) for clip in pool),
+        key=lambda item: item[0],
+        reverse=True,
+    )
+    top_slice = ranked[: min(3, len(ranked))]
+    if not top_slice:
+        return random.choice(clip_assets)
+    weighted_pool = [clip for score, clip in top_slice for _ in range(max(1, int(score // 10) or 1))]
+    return random.choice(weighted_pool or [top_slice[0][1]])
 
 
 def get_motion_crop_filter(effect_id: str, width: int, height: int, duration_sec: float) -> str:

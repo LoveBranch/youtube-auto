@@ -100,8 +100,22 @@ async def render_make_from_clips(
     for upload, meta in zip(clips, clip_meta, strict=False):
         category = str(meta.get("category", "main"))
         upload_name = str(meta.get("name") or upload.filename or f"clip_{len(clip_assets) + 1}")
+        tags = [
+            str(tag).strip()
+            for tag in meta.get("tags", [])
+            if str(tag).strip()
+        ] if isinstance(meta.get("tags"), list) else []
+        note = str(meta.get("note") or "").strip()
         clip_path = _save_upload(upload, tmp_dir, f"{len(clip_assets) + 1:03d}_{Path(upload_name).name}")
-        clip_assets.append(ClipAsset(name=upload_name, path=clip_path, category=category))
+        clip_assets.append(
+            ClipAsset(
+                name=upload_name,
+                path=clip_path,
+                category=category,
+                tags=tags,
+                note=note,
+            )
+        )
 
     job = create_job()
     asyncio.create_task(
