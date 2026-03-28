@@ -24,6 +24,7 @@ from gemini_srt import generate_srt_with_gemini, load_settings  # type: ignore
 FPS = 30
 MAX_DURATION_SEC = 180
 SUPPORTED_SUBTITLE_FORMATS = {"vtt", "vtt+srt"}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 VISUAL_MOTION_EFFECTS = [
     "none",
     "zoom_in_slow",
@@ -275,6 +276,10 @@ def get_aspect_resolution(aspect_ratio: str) -> tuple[int, int]:
     }.get(aspect_ratio, (1280, 720))
 
 
+def is_image_asset(path: Path) -> bool:
+    return path.suffix.lower() in IMAGE_EXTENSIONS
+
+
 def pick_clip_for_segment(segment: dict, clip_assets: list[ClipAsset], recent_names: list[str]) -> ClipAsset:
     preferred_number = int(segment.get("clipNumber") or 0)
     if preferred_number > 0:
@@ -354,8 +359,11 @@ def render_clip_slot(
     motion_effect: str,
 ) -> None:
     width, height = get_aspect_resolution(aspect_ratio)
-    source_duration = max(0.1, get_video_duration(clip_path))
     safe_target = max(target_duration_sec, 0.2)
+    if is_image_asset(clip_path):
+        source_duration = safe_target
+    else:
+        source_duration = max(0.1, get_video_duration(clip_path))
     effective_motion = motion_effect
     hold_duration = 0.0
     segment_fill_ratio = source_duration / safe_target
@@ -391,23 +399,40 @@ def render_clip_slot(
     ])
     filter_chain = ",".join(filter_parts)
 
-    result = subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
+    command = [
+        "ffmpeg",
+        "-y",
+    ]
+    if is_image_asset(clip_path):
+        command.extend([
+            "-loop",
+            "1",
             "-i",
             str(clip_path),
-            "-an",
-            "-vf",
-            filter_chain,
-            "-c:v",
-            "libx264",
-            "-preset",
-            "ultrafast",
-            "-crf",
-            "23",
-            str(output_path),
-        ],
+            "-t",
+            f"{safe_target:.3f}",
+        ])
+    else:
+        command.extend([
+            "-i",
+            str(clip_path),
+        ])
+
+    command.extend([
+        "-an",
+        "-vf",
+        filter_chain,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "ultrafast",
+        "-crf",
+        "23",
+        str(output_path),
+    ])
+
+    result = subprocess.run(
+        command,
         capture_output=True,
         timeout=600,
     )
