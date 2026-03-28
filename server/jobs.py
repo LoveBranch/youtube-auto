@@ -36,6 +36,10 @@ PHASE_WEIGHTS = {
     "generate": 0.30,
     # ai_video: 0.15 (shared)
     # compositing: 0.15 (shared)
+    # Make from Clips pipeline
+    "slot_render": 0.55,
+    "mux": 0.30,
+    "preview": 0.15,
 }
 
 
